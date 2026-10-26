@@ -1,0 +1,20 @@
+# ===== 游戏本体（Steam 管理，绝不入库）=====
+/IdleAbyssPrincesses.exe
+/resources/
+/locales/
+/chrome_100_percent.pak
+/chrome_200_percent.pak
+/resources.pak
+/icudtl.dat
+/snapshot_blob.bin
+/v8_context_snapshot.bin
+/vk_swiftshader_icd.json
+/*.dll
+LICENSE.electron.txt
+LICENSES.chromium.html
+
+# ===== 工具、产物、临时文件 =====
+/.tools/
+/build/
+*.log
+.tmp_commit_msg.txt

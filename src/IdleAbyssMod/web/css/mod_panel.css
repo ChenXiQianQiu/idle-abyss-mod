@@ -1,0 +1,166 @@
+/* ============================================================
+   深渊调试台 Mod · 面板样式
+   ------------------------------------------------------------
+   跟游戏本体同一套像素风：石框 + 铜钉 + 鎏金强调色。
+   面板挂在 body 上（不在 #app 里），所以不吃游戏的 --z 缩放，
+   自己的缩放由 .iap 的 transform 控制，文字一起缩放。
+   ============================================================ */
+#iap-panel {
+  position: fixed; left: 40px; top: 40px; z-index: 99999;
+  display: none; flex-direction: column;
+  width: 900px; max-height: calc(100vh - 24px);
+  transform-origin: 0 0;
+  font: 12px/14px 'Ember Pixel', monospace;
+  color: var(--ink, #e8dcc0);
+  background: var(--stone1, #1c171b);
+  border: 1px solid var(--edge, #0a0708);
+  box-shadow: inset 1px 1px 0 var(--iron-hi, #857a82), inset -1px -1px 0 var(--iron-lo, #2e272d),
+    inset 2px 2px 0 var(--iron, #5a5058), inset -2px -2px 0 var(--iron, #5a5058),
+    inset 3px 3px 0 var(--edge, #0a0708), inset -3px -3px 0 var(--edge, #0a0708),
+    0 10px 30px rgba(0, 0, 0, .75);
+  padding: 4px;
+  user-select: none;
+}
+#iap-panel.on { display: flex; }
+#iap-panel::before {
+  content: ''; position: absolute; inset: 1px; pointer-events: none;
+  background:
+    linear-gradient(var(--gold-hi, #f0d070), var(--gold, #c9a13a)) 0 0 / 3px 3px no-repeat,
+    linear-gradient(var(--gold-hi, #f0d070), var(--gold, #c9a13a)) 100% 0 / 3px 3px no-repeat,
+    linear-gradient(var(--gold-hi, #f0d070), var(--gold, #c9a13a)) 0 100% / 3px 3px no-repeat,
+    linear-gradient(var(--gold-hi, #f0d070), var(--gold, #c9a13a)) 100% 100% / 3px 3px no-repeat;
+}
+
+/* ---------- 标题栏 ---------- */
+.iap-hd { display: flex; align-items: center; gap: 6px; padding: 3px 6px 4px; cursor: move;
+  background: linear-gradient(#2a2229, #1d171c); border-bottom: 1px solid var(--edge, #0a0708); }
+.iap-title { color: var(--gold-hi, #f0d070); letter-spacing: 1px; }
+.iap-ver { color: var(--mute, #6a5e52); font-size: 10px; }
+.iap-sv { color: var(--dim, #9a8a74); min-width: 34px; text-align: center; font-size: 10px; }
+.iap-sp { flex: 1; }
+
+/* ---------- 标签页 ---------- */
+.iap-tabs { display: flex; gap: 3px; padding: 5px 6px 0; }
+.iap-tab { padding: 2px 12px; color: var(--dim, #9a8a74); background: var(--stone2, #262026);
+  border: 1px solid var(--edge, #0a0708); box-shadow: inset 1px 1px 0 #3a3138; }
+.iap-tab:hover { color: #fff; background: #3c333a; }
+.iap-tab.on { color: var(--gold-hi, #f0d070); background: #4a3a1e; box-shadow: inset 1px 1px 0 #7a5a1a; }
+
+/* ---------- 主体 ---------- */
+.iap-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; margin-top: 4px;
+  background: var(--stone0, #141013); border: 1px solid var(--edge, #0a0708);
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 var(--stone3, #322a31); }
+.iap-body::-webkit-scrollbar { width: 8px; }
+.iap-body::-webkit-scrollbar-track { background: #0d0a0d; }
+.iap-body::-webkit-scrollbar-thumb { background: #3a3138; border: 1px solid #0a0708; }
+.iap-pane { min-height: 100%; }
+
+/* ---------- 通用控件 ---------- */
+.iap-btn { display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-height: 16px; padding: 1px 8px; background: var(--stone3, #322a31); color: var(--ink, #e8dcc0);
+  border: 1px solid var(--edge, #0a0708); box-shadow: inset 1px 1px 0 #4e444c, inset -1px -1px 0 #1a1418; }
+.iap-btn:hover { background: #3c333a; color: #fff; }
+.iap-btn:active { box-shadow: inset 1px 1px 0 #1a1418, inset -1px -1px 0 #4e444c; }
+.iap-btn.pri { background: #5a4214; color: var(--gold-hi, #f0d070); box-shadow: inset 1px 1px 0 #a8802a, inset -1px -1px 0 #2a1e08; }
+.iap-btn.ghost { background: transparent; color: var(--dim, #9a8a74); box-shadow: none; border-color: #2e272d; }
+.iap-btn.ghost:hover { color: var(--bad, #ff6e5e); }
+.iap-btn.tiny { padding: 0 5px; min-width: 18px; }
+.iap-btn.close:hover { background: #6a1e1a; color: #ffe8d0; }
+.iap-in { width: 120px; padding: 1px 6px; min-height: 18px; color: var(--gold-hi, #f0d070);
+  background: #0f0b0f; border: 1px solid #4a4048;
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 var(--stone3, #322a31);
+  font: inherit; text-align: right; }
+.iap-in:focus { outline: 1px solid var(--gold-hi, #f0d070); outline-offset: 0; }
+.iap-in.sm { width: 100px; }
+select.iap-in { text-align: left; }
+.iap-hint { color: var(--mute, #6a5e52); font-size: 10px; line-height: 12px; }
+.iap-note { color: var(--dim, #9a8a74); padding: 2px 2px 6px; border-bottom: 1px dashed #2e272d; margin-bottom: 4px; }
+.iap-note b { color: var(--gold-hi, #f0d070); }
+.iap-empty { color: var(--dim, #9a8a74); padding: 22px 8px; text-align: center; }
+.iap-empty.sm { padding: 10px; }
+.iap-empty.bad { color: var(--bad, #ff6e5e); }
+
+/* ---------- 资源 / 进度行 ---------- */
+.iap-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-bottom: 1px solid #201a1f; }
+.iap-row:hover { background: #1a1519; }
+.iap-lab { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.iap-lab b { color: var(--ink, #e8dcc0); font-weight: normal; }
+.iap-lab small { color: var(--mute, #6a5e52); font-size: 10px; line-height: 11px; }
+.iap-cur { width: 84px; text-align: right; color: var(--gold, #c9a13a); }
+.iap-cur i { font-style: normal; }
+
+/* ---------- 分区 ---------- */
+.iap-sec { margin: 8px 0 4px; border: 1px solid #241d22; background: #171216; }
+.iap-sechd { display: flex; align-items: baseline; gap: 8px; padding: 2px 6px; background: #221b21;
+  border-bottom: 1px solid #0a0708; }
+.iap-sechd b { color: var(--gold, #c9a13a); font-weight: normal; }
+.iap-sechd small { color: var(--mute, #6a5e52); font-size: 10px; }
+.iap-sec .iap-row { border-bottom: 1px solid #1c161b; }
+.iap-sec .iap-row:last-child { border-bottom: 0; }
+
+/* ---------- 标签按钮 ---------- */
+.iap-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 8px; }
+.iap-chip { padding: 1px 8px; color: var(--dim, #9a8a74); background: var(--stone2, #262026);
+  border: 1px solid var(--edge, #0a0708); box-shadow: inset 1px 1px 0 #3a3138; }
+.iap-chip:hover { color: #fff; }
+.iap-chip.on { color: var(--gold-hi, #f0d070); background: #4a3a1e; box-shadow: inset 1px 1px 0 #7a5a1a; }
+.iap-chip:disabled { opacity: .35; cursor: default; }
+
+/* ---------- 宝石网格 ---------- */
+.iap-gemhead, .iap-gemrow { display: grid; grid-template-columns: 96px repeat(5, 1fr); gap: 4px; padding: 2px 8px; align-items: center; }
+.iap-gemhead i { color: var(--mute, #6a5e52); font-size: 10px; font-style: normal; text-align: right; }
+.iap-gemname { color: var(--dim, #9a8a74); }
+.iap-gemrow .iap-in { width: 100%; }
+.iap-gemrow:nth-child(odd) { background: #1a1519; }
+
+/* ---------- 装备页 ---------- */
+.iap-eqwrap { display: grid; grid-template-columns: 330px 1fr; gap: 8px; align-items: start; }
+.iap-eqlist { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.iap-eqed { min-width: 0; border-left: 1px solid #241d22; padding-left: 6px; }
+.iap-gen { border: 1px solid #241d22; background: #171216; padding: 4px 8px 7px; }
+.iap-genhd { color: var(--gold, #c9a13a); padding-bottom: 3px; }
+.iap-genrow { display: flex; gap: 4px; margin-bottom: 3px; }
+.iap-genrow .iap-in { width: 100%; flex: 1 1 auto; }
+.iap-genrow .iap-btn { flex: 0 0 auto; white-space: nowrap; padding: 1px 12px; }
+.iap-eqtop { display: flex; flex-direction: column; gap: 4px; }
+.iap-eqtop .iap-in { width: 100%; text-align: left; }
+.iap-eqitems { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto;
+  border: 1px solid #241d22; background: #100d11; padding: 2px; }
+.iap-eqitems::-webkit-scrollbar { width: 8px; }
+.iap-eqitems::-webkit-scrollbar-thumb { background: #3a3138; }
+.iap-item { display: flex; align-items: center; gap: 5px; padding: 2px 4px; text-align: left;
+  border: 1px solid transparent; background: transparent; }
+.iap-item img { width: 16px; height: 16px; image-rendering: pixelated; }
+.iap-item:hover { background: #201a1f; }
+.iap-item.on { background: #2a2118; border-color: var(--gold-lo, #7a5a1a); }
+.iap-itemtx { display: flex; flex-direction: column; min-width: 0; }
+.iap-itemtx b { color: var(--c, #d8d4cc); font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iap-itemtx small { color: var(--mute, #6a5e52); font-size: 10px; line-height: 11px; }
+.iap-edhd { display: flex; align-items: center; gap: 6px; padding: 3px 4px 5px; border-bottom: 1px solid #241d22; }
+.iap-edhd img { width: 20px; height: 20px; image-rendering: pixelated; }
+.iap-edname { display: flex; flex-direction: column; min-width: 0; }
+.iap-edname b { font-weight: normal; }
+.iap-edname small { color: var(--mute, #6a5e52); font-size: 10px; line-height: 11px; }
+
+/* ---------- 词缀行 ---------- */
+.iap-aff { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-bottom: 1px solid #1c161b; }
+.iap-aff:last-child { border-bottom: 0; }
+.iap-aff .iap-in { width: 96px; }
+.iap-aff.ro .iap-affk { flex: 1; color: #e8c66e; }
+.iap-aff.ro .iap-affv { color: var(--ink, #e8dcc0); }
+.iap-range { flex: 1; color: var(--mute, #6a5e52); font-size: 10px; line-height: 11px; }
+.iap-range i { font-style: normal; color: #8a7a64; }
+.iap-affadd { padding: 4px 8px 6px; }
+
+/* ---------- 底部 ---------- */
+.iap-ft { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; }
+.iap-tip { color: var(--mute, #6a5e52); font-size: 10px; }
+
+/* ---------- 轻提示 ---------- */
+.iap-toast { position: fixed; right: 14px; bottom: 14px; z-index: 100000;
+  padding: 4px 10px; color: var(--gold-hi, #f0d070); background: #1c171b;
+  border: 1px solid var(--edge, #0a0708); box-shadow: inset 1px 1px 0 #4e444c, 0 4px 12px rgba(0, 0, 0, .6);
+  font: 12px/14px 'Ember Pixel', monospace; opacity: 0; transform: translateY(6px);
+  transition: opacity .16s, transform .16s; pointer-events: none; }
+.iap-toast.on { opacity: 1; transform: none; }
+.iap-toast.bad { color: var(--bad, #ff6e5e); }
