@@ -11,6 +11,10 @@
       也就是单人打完首领只有 20% 概率掉 1 件。
       开关打开后，raidDevRollDrops 返回 0 件时补 1 件，走同样的
       raidLootTable() + raidRollItem()，产出规格与正常掉落一致。
+      补件之后还要再走一次女王的稀世判定（见 tryRelic）：原函数那句
+      `if (out.length && bossId === 'queen' && rng() < RAID_BAL.relic)` 是
+      「有掉落才掷」，补件在它之后，不补这一步的话保底那件永远不是稀世，
+      开关开着刷女王一百次也见不到永夜之心（概率还是原版的 20% × 1% = 0.2%）。
 
    2) 无限掉落资格
       资格 = S.raid.cd[`${难度}:${首领}`]，只有真掉到装备才写
@@ -93,10 +97,34 @@
       if (solo && R.mustDrop && !out.length) {
         const it = rollOne(bossId, diff, rng, classes);
         if (it) out.push(it);
+        /* 原函数的稀世判定写在 `if (out.length && ...)` 里，也就是「有掉落才掷」。
+           补件发生在它之后，不补这一步的话，保底补出来的那件永远不可能是稀世，
+           女王刷一百次也见不到永夜之心。 */
+        if (out.length) tryRelic(out, bossId, diff, rng);
       }
       return out;
     };
     R.hooked.roll = true;
+  }
+
+  /* 复刻 raidDevRollDrops 末尾的稀世替换（data_raid.js:61 relic = .01）：
+     女王有掉落时，把最后一件换成稀世（永夜之心 / 女王的婚戒）。
+     稀世的 cls 是 null，所以上面的 toOwnClass 不会把它换成本职业装备。 */
+  function tryRelic(out, bossId, diff, rng) {
+    if (bossId !== 'queen' || !out.length) return;
+    const bal = G.RAID_BAL;
+    const chance = (bal && typeof bal.relic === 'number') ? bal.relic : .01;
+    const J = G.RAID_JEWELS;
+    if (!J) return;
+    const rr = asRng(rng);
+    if (!(rr() < chance)) return;
+    const relics = Object.keys(J).filter(function (k) { return J[k] && J[k].relic; });
+    if (!relics.length || typeof raidRollItem !== 'function') return;
+    try {
+      const pick = relics[Math.min(relics.length - 1, Math.floor(rr() * relics.length))];
+      const it = raidRollItem(pick, diff, rr);
+      if (it) out[out.length - 1] = it;
+    } catch (e) { console.warn('[IAP] 稀世替换失败', e); }
   }
 
   /* 掉落池。onlyOwn 打开时只留本职业装备与通用首饰（cls 为 null）。
@@ -181,6 +209,7 @@
     const cls = ownCls();
     const C = G.CLASSES;
     const clsName = (C && C[cls] && C[cls].n) ? C[cls].n : (cls || '未选');
+    const relicPct = Math.round((((bal && bal.relic) || .01) * 1000)) / 10;   // 0.01 → 1
     const poolOf = function (bossId) {
       let t = [];
       try { t = typeof raidLootTable === 'function' ? (raidLootTable(bossId) || []) : []; } catch (e) { }
@@ -195,7 +224,12 @@
         ${toggleChip('onlyOwn', R.onlyOwn, '只掉本职业 / 通用', '掉落池只留本职业装备与全职业通用首饰')}
         ${toggleChip('noCd', R.noCd, '无限掉落资格', '掉到装备也不消耗本周资格')}
         <div class="iap-hint">当前职业：<b>${NS.esc(clsName)}</b>。原版掉落池 8 个职业混在一起，本职业只占 1/8，
-          掉了也只能进共用仓库；开启后池子只剩本职业 + 通用首饰。女王的首领池只有武器，过滤后 ${poolOf('queen')}，所以必定掉本职业武器。</div>
+          掉了也只能进共用仓库；开启后池子只剩本职业 + 通用首饰。
+          通用首饰只挂在馆长 / 女官 / 园丁 / 守夜四个首领身上（各约 50%），门卫、宴主原本就没有首饰。
+          女王的池子只有武器，过滤后 ${poolOf('queen')}，掉的一定是本职业武器；
+          另有 <b>${relicPct}%</b> 概率把这一件换成稀世（永夜之心 / 女王的婚戒，全职业通用）。</div>
+        <div class="iap-hint">稀世只从「女王这一件掉落」里掷：开「必定掉落」后每次通关都掷一次（约 ${relicPct}%），
+          不开则只有 ${dropExtra}% × ${relicPct}% ≈ ${Math.round(dropExtra * relicPct) / 100}% 才轮得到。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>本周资格</b><small>第 ${NS.esc(week)} 周 · 绿色 = 还能掉</small></div>
         ${diffs}

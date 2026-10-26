@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.2.1';
+  NS.version = '0.2.2';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
