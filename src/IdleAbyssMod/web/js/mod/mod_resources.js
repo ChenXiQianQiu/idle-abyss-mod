@@ -2,10 +2,10 @@
 /* ============================================================
    mod_resources.js — 资源页
    ------------------------------------------------------------
-   可改：金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 扭蛋券 / 王庭锭 /
-        王庭碎片（三档难度）/ 宝石（6 种 × 5 品级）。
+   可改：金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 扭蛋券 / 强化祝福 /
+        王庭锭 / 王庭碎片（三档难度）/ 宝石（6 种 × 5 品级）。
    字段出处（存档结构）：state.js 的 newState()（gold / souls / rift.keys /
-   gacha.tickets）与 newAccount()（shards / gems / raid.ingots / raid.frag）。
+   gacha.tickets / gacha.bless）与 newAccount()（shards / gems / raid.ingots / raid.frag）。
    魂晶与宝石是账号级数据，S.shards / S.gems 是 state.js bindAccount() 挂上去的
    存取器，写 S.shards 等价于写 A.shards，所以这里统一走 S，让游戏自己处理落盘。
    ============================================================ */
@@ -33,6 +33,12 @@
     {
       key: 'tickets', name: '扭蛋券', sub: '扭蛋机抽奖用',
       get: () => ((G.S || {}).gacha || {}).tickets, set: v => { G.S.gacha.tickets = v; }, max: 1e9,
+    },
+    {
+      /* gacha.js:16 的 gachaNorm 只要求 >=0 的整数，没有硬上限；
+         gachaBlessOn() = S.gacha.blessOn && S.gacha.bless>0，所以只要数量 >0 就会生效。 */
+      key: 'bless', name: '强化祝福', sub: '下次强化必定成功 · 扭蛋 / 熔炉获得',
+      get: () => ((G.S || {}).gacha || {}).bless, set: v => { G.S.gacha.bless = v; }, max: 1e9,
     },
     {
       key: 'ingots', name: '王庭锭', sub: '团本兑换 · 账号共用',

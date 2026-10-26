@@ -102,20 +102,27 @@
   function affRows(it) {
     const list = it.aff || [];
     const rows = list.map(function (f, i) {
-      const fixed = !!(f.raid || f.fixed);
-      if (fixed) {
+      /* raid:1 = 王庭特效词条，值由 RAID_EFFECTS 表决定，而且读档时 raidItemFix 会把它
+         整条重建（raid_items.js:380-383），手改存不下来，所以只读。 */
+      if (f.raid) {
         return `<div class="iap-aff ro"><span class="iap-affk">◆ ${statName(f.k)}</span>
-          <span class="iap-affv">${valTxt(f.v, f.k)}</span><span class="iap-range">王庭固定词条</span></div>`;
+          <span class="iap-affv">${valTxt(f.v, f.k)}</span><span class="iap-range">王庭特效 · 由装备表定义</span></div>`;
       }
-      const r = NS.affRangeOf(f.k, it) || [0, 0];
-      const pool = affOptions(it, i);
-      const opts = pool.map(k => `<option value="${k}"${k === f.k ? ' selected' : ''}>${statName(k)}</option>`).join('');
+      const r = NS.affRangeAny(it, f) || [0, 0];
       const eff = f.v * F.plusM(it);
+      const effTxt = `强化后 ${valTxt(Math.round(eff * 10) / 10, f.k)}`;
+      /* fixed:1 = 王庭那条固定生命词条，掷点范围是 spread(.85~1.15)，可以改值但不能删。 */
+      const head = f.fixed
+        ? `<span class="iap-affk" title="${statName(f.k)}">◆ ${statName(f.k)}</span>`
+        : `<select class="iap-in sm" data-eq="affk:${i}" aria-label="词条">${
+            affOptions(it, i).map(k => `<option value="${k}"${k === f.k ? ' selected' : ''}>${statName(k)}</option>`).join('')
+          }</select>`;
+      const del = f.fixed ? '' : `<button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>`;
       return `<div class="iap-aff">
-        <select class="iap-in sm" data-eq="affk:${i}" aria-label="词条">${opts}</select>
+        ${head}
         <input class="iap-in sm" type="text" inputmode="decimal" spellcheck="false" data-eq="affv:${i}" value="${F.pv(f.v)}">
-        <span class="iap-range">${valTxt(r[0], f.k)} ~ ${valTxt(r[1], f.k)}<br><i>强化后 ${valTxt(Math.round(eff * 10) / 10, f.k)}</i></span>
-        <button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>
+        <span class="iap-range">${valTxt(r[0], f.k)} ~ ${valTxt(r[1], f.k)}<br><i>${f.fixed ? '王庭固定词条 · ' + effTxt : effTxt}</i></span>
+        ${del}
       </div>`;
     }).join('');
     const cap = NS.affCap(it);
@@ -123,8 +130,11 @@
     const addBtn = cur < cap
       ? `<button class="iap-btn" data-do="addaff">＋ 添加词缀（${cur}/${cap}）</button>`
       : `<span class="iap-hint">词缀已满（${cur}/${cap}，该品质上限）</span>`;
+    /* 王庭装备没有上古 / 太古，但同样有「这条词缀最高能到多少」，
+       所以满值做成独立按钮，对所有非奇物装备都开放。 */
+    const maxBtn = `<button class="iap-btn pri" data-do="maxaff" title="把每条可改词缀拉到这件装备当前能掷出的最高值">词缀全满</button>`;
     return `<div class="iap-sec"><div class="iap-sechd"><b>词缀</b><small>数值上限 = 该装备等级下能掷出的最高值</small></div>
-      ${rows || '<div class="iap-hint">这件装备没有随机词缀。</div>'}<div class="iap-affadd">${addBtn}</div></div>`;
+      ${rows || '<div class="iap-hint">这件装备没有随机词缀。</div>'}<div class="iap-affadd">${addBtn}${maxBtn}</div></div>`;
   }
 
   function affOptions(it, idx) {
@@ -171,7 +181,9 @@
         ${numField('强化等级 +', 'data-eq="plus"', it.plus || 0, `0 ~ ${G.MAX_PLUS}`)}</div>`;
     }
     const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${raid ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
-    const flags = raid ? '<span class="iap-hint">王庭装备没有上古 / 太古变体</span>' : `
+    const flags = raid
+      ? '<span class="iap-hint">王庭装备没有上古 / 太古，用下面词缀区的「词缀全满」把数值顶满</span>'
+      : `
       <button class="iap-chip${it.anc ? ' on' : ''}" data-do="anc">上古（数值 ×1.3）</button>
       <button class="iap-chip${it.primal ? ' on' : ''}" data-do="primal">太古（词缀满值）</button>`;
     return head + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>改品质会改变词缀区间与词缀条数上限</small></div>
@@ -198,11 +210,18 @@
 
   /* ---------- 交互 ---------- */
   function clampAff(it, f) {
-    const r = NS.affRangeOf(f.k, it);
+    const r = NS.affRangeAny(it, f);
     if (!r) return;
     const v = NS.clampNum(Number(f.v), r[0], r[1]);
     f.v = NS.roundStat(v, pct(f.k));
     f.q = r[1] > r[0] ? Math.max(0, Math.min(1, (f.v - r[0]) / (r[1] - r[0]))) : 1;
+  }
+  /* 把一条词缀拉到当前能掷出的最高值（王庭固定生命词条同样适用） */
+  function maxAff(it, f) {
+    const r = NS.affRangeAny(it, f);
+    if (!r) return;
+    f.v = NS.roundStat(r[1], pct(f.k));
+    f.q = 1;
   }
 
   function bind(root) {
@@ -218,7 +237,7 @@
       const rb = e.target.closest('[data-r]');
       if (rb && EQ.sel) {
         EQ.sel.r = Number(rb.dataset.r);
-        (EQ.sel.aff || []).forEach(f => { if (!f.raid && !f.fixed) clampAff(EQ.sel, f); });
+        (EQ.sel.aff || []).forEach(f => { if (!f.raid) clampAff(EQ.sel, f); });
         NS.apply(false); rerender(); return;
       }
       const btn = e.target.closest('[data-do]');
@@ -234,11 +253,19 @@
           if (!it.anc) it.primal = false;
         }
         it.aff.forEach(function (f) {
-          if (f.raid || f.fixed) return;
-          if (it.primal) { const r = NS.affRangeOf(f.k, it); if (r) { f.v = NS.roundStat(r[1], pct(f.k)); f.q = 1; } }
-          else clampAff(it, f);
+          if (f.raid) return;
+          if (it.primal) maxAff(it, f); else clampAff(it, f);
         });
         NS.apply(false); rerender(); return;
+      }
+      /* 词缀全满：不碰任何标志位，只把数值顶到区间上限。王庭装备靠它（没有太古可用）。 */
+      if (act === 'maxaff') {
+        if (!Array.isArray(it.aff)) it.aff = [];
+        let n = 0;
+        it.aff.forEach(function (f) { if (!f.raid) { maxAff(it, f); n++; } });
+        NS.apply(false); rerender();
+        NS.toast(n ? `${n} 条词缀已拉满` : '这件装备没有可改的词缀', !n);
+        return;
       }
       if (act === 'addaff') {
         if (!Array.isArray(it.aff)) it.aff = [];
@@ -279,7 +306,7 @@
       if (kind === 'ilvl') {
         const cap = F.ruleIlvl(9999);
         it.ilvl = Math.floor(NS.clampNum(NS.parseNum(el.value, it.ilvl), 1, cap));
-        (it.aff || []).forEach(f => { if (!f.raid && !f.fixed) clampAff(it, f); });
+        (it.aff || []).forEach(f => { if (!f.raid) clampAff(it, f); });
       } else if (kind === 'plus') {
         it.plus = Math.floor(NS.clampNum(NS.parseNum(el.value, it.plus || 0), 0, G.MAX_PLUS));
       } else if (kind === 'base') {
@@ -299,7 +326,7 @@
         }
       } else if (kind === 'affv') {
         const i = Number(arg), f = it.aff[i];
-        if (f && !f.raid && !f.fixed) { f.v = NS.parseNum(el.value, f.v); clampAff(it, f); }
+        if (f && !f.raid) { f.v = NS.parseNum(el.value, f.v); clampAff(it, f); }   // fixed 生命词条也允许改
       } else if (kind === 'sockg') {
         const i = Number(arg), g = it.sock[i];
         if (!el.value) { it.sock[i] = null; }

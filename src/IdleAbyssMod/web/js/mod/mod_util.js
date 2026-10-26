@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.1.0';
+  NS.version = '0.1.1';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -101,12 +101,31 @@
     const A = G.AFF[k];
     if (!A || !it) return null;
     if (it.raid) {
-      const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { radiantMul: 1.35 };
+      const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { radiantMul: 1.3 };
       const top = A.f(it.ilvl) * 1.1 * (it.radiant ? bal.radiantMul : 1);
       const cap = A.cap ? A.cap * (it.radiant ? 1.25 : 1) : Infinity;
       return [Math.min(top * .6, cap), Math.min(top, cap)];
     }
     return F.affRange(k, it.ilvl, it);
+  };
+  /* 王庭装备那条带 fixed 标记的固定生命词条（raid_items.js:339）不走 affRange()，
+     它的掷点是 RAID_LIFE_MUL[部位] × lifePower × P(ilvl) × spread(.85 ~ 1.15) × radiantMul，
+     所以区间要单独算，否则「词缀全满」会把这条漏掉。 */
+  NS.raidLifeRange = function (it) {
+    if (!it || !it.raid) return null;
+    const mul = typeof RAID_LIFE_MUL === 'object' && RAID_LIFE_MUL ? (RAID_LIFE_MUL[it.t] || 0) : 0;
+    if (!mul) return null;
+    const lp = typeof raidItemLifePower === 'function' ? raidItemLifePower(it.raidDiff, it.cls || (G.S && G.S.cls)) : 1;
+    const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { radiantMul: 1.3 };
+    const pw = typeof P === 'function' ? P : function (l) { return Math.pow(1.11, l); };   // core.js:15
+    const base = mul * (Number(lp) || 1) * pw(Number(it.ilvl) || 1) * (it.radiant ? bal.radiantMul : 1);
+    return [Math.max(1, Math.round(base * .85)), Math.max(1, Math.round(base * 1.15))];
+  };
+  /* 统一入口：固定生命词条走 raidLifeRange，其余走 affRangeOf。 */
+  NS.affRangeAny = function (it, f) {
+    if (!f) return null;
+    if (f.fixed && !f.raid) return NS.raidLifeRange(it);
+    return NS.affRangeOf(f.k, it);
   };
   NS.rarMul = function (it) {
     const base = [1, 1.1, 1.2, 1.35, 1.35][it.r] || 1;
@@ -139,8 +158,11 @@
   NS.affCap = function (it) {
     if (!it) return 0;
     if (it.raid) {
-      const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { affixes: 4 };
-      return Math.max((it.aff || []).filter(f => !f.raid && !f.fixed).length, bal.affixes);
+      const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { affixes: 5 };
+      /* raidRollItem 里随机词缀条数是 affixes - (有固定生命词条 ? 1 : 0)，
+         所以带生命的部位（护甲类、首饰）只能有 4 条随机词缀。 */
+      const hasFixed = (it.aff || []).some(f => f.fixed && !f.raid);
+      return Math.max(1, (bal.affixes || 5) - (hasFixed ? 1 : 0));
     }
     const n = [0, 2, 4, 4, 4][it.r] || 4;
     return n + (it.r >= 3 && it.ilvl >= 40 ? 1 : 0);
