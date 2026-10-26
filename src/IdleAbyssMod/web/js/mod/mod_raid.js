@@ -19,6 +19,17 @@
       开关打开后，单人模式下 raidUseCD 直接返回 true 但不写 CD，
       于是本周每个首领的资格用不完。
 
+   3) 只掉本职业 / 通用
+      掉落池由 raidLootTable() 给出（data_raid.js:189）：
+        `RAID_ITEMS.filter(i => i.boss === bossId && i.kind !== 'relic')`
+      它**不按职业过滤**——8 个职业的同部位装备全在池里，谁刷都一样
+      （data_raid.js:172 的注释写明这是用户当初的决定）。所以单人打首领，
+      8/9 的概率掉到别的职业的装备，只能进账号共用仓库，本职业拿不到。
+      开关打开后，把掉落里「别的职业」的装备换成同部位、本职业的版本，
+      通用首饰（cls = null，全职业可用）与稀世原样保留。
+      换的是整件装备（重新走 raidRollItem），不是只改 cls 字段——职业一变，
+      武器名、基础值、词缀池（affRollPool 按职业取）都得跟着换。
+
    实现方式：包装游戏的全局函数。游戏是经典脚本，顶层 function 声明会挂到
    window 上，raidSoloLoot 里是裸名调用，所以包装 window 上的同名属性就能生效；
    开关关掉时原样转发给保存下来的原函数，行为与未装 Mod 完全一致。
@@ -28,6 +39,7 @@
   const R = (NS.raid = {
     mustDrop: !!NS.prefs.raidMustDrop,
     noCd: !!NS.prefs.raidNoCd,
+    onlyOwn: !!NS.prefs.raidOnlyOwn,
     hooked: { useCD: false, roll: false },
   });
   const rerender = function () { if (NS.panel) NS.panel.refresh(); };
@@ -35,6 +47,7 @@
   const savePrefs = function () {
     NS.prefs.raidMustDrop = R.mustDrop;
     NS.prefs.raidNoCd = R.noCd;
+    NS.prefs.raidOnlyOwn = R.onlyOwn;
     NS.savePrefs();
   };
   /* 是否正处在单人挑战里（RAID_SOLO.on 由 raidSoloStart / raidSoloReset 维护） */
@@ -47,6 +60,10 @@
   const hasCD = function (diff, boss) {
     try { return typeof raidHasCD === 'function' ? !!raidHasCD(diff, boss) : false; } catch (e) { return false; }
   };
+  const ownCls = function () {
+    try { const S = G.S; return (S && S.cls) || ''; } catch (e) { return ''; }
+  };
+  const asRng = function (rng) { return typeof rng === 'function' ? rng : Math.random; };
 
   /* ---------- 包装游戏函数 ---------- */
   const orig = {};
@@ -66,9 +83,14 @@
     if (R.hooked.roll || typeof raidDevRollDrops !== 'function') return;
     orig.roll = raidDevRollDrops;
     window.raidDevRollDrops = function (bossId, diff, rng, teamSize, classes) {
-      const out = orig.roll.apply(this, arguments) || [];
       const size = Number(teamSize) || 1;
-      if (R.mustDrop && soloNow() && size <= 1 && !out.length) {
+      const solo = soloNow() && size <= 1;
+      let out = orig.roll.apply(this, arguments) || [];
+      /* 先换职业，再补保底：补出来的那件也必须符合「本职业 / 通用」 */
+      if (solo && R.onlyOwn && out.length) {
+        out = out.map(function (it) { return toOwnClass(it, diff, rng); });
+      }
+      if (solo && R.mustDrop && !out.length) {
         const it = rollOne(bossId, diff, rng, classes);
         if (it) out.push(it);
       }
@@ -77,15 +99,48 @@
     R.hooked.roll = true;
   }
 
+  /* 掉落池。onlyOwn 打开时只留本职业装备与通用首饰（cls 为 null）。
+     万一过滤完是空表（数据改版之类），退回原池，宁可不筛也不给 0 件。 */
+  function lootTable(bossId, classes) {
+    let t = [];
+    try { t = typeof raidLootTable === 'function' ? (raidLootTable(bossId, classes) || []) : []; } catch (e) { t = []; }
+    if (!Array.isArray(t)) t = [];
+    if (R.onlyOwn) {
+      const cls = ownCls();
+      const f = cls ? t.filter(function (i) { return !i.cls || i.cls === cls; }) : t;
+      if (f.length) return f;
+    }
+    return t;
+  }
+
   /* 按首领掉落表随机一件，规格与 raidDevRollDrops 里的一致 */
   function rollOne(bossId, diff, rng, classes) {
     try {
-      const table = typeof raidLootTable === 'function' ? raidLootTable(bossId, classes) : null;
-      if (!table || !table.length) return null;
-      const pick = table[Math.min(table.length - 1, Math.floor(rng() * table.length))];
+      const rr = asRng(rng);
+      const table = lootTable(bossId, classes);
+      if (!table.length) return null;
+      const pick = table[Math.min(table.length - 1, Math.floor(rr() * table.length))];
       if (!pick || typeof raidRollItem !== 'function') return null;
-      return raidRollItem(pick.id, diff, rng);
+      return raidRollItem(pick.id, diff, rr);
     } catch (e) { console.warn('[IAP] 补掉落失败', e); return null; }
+  }
+
+  /* 把别职业的装备换成同部位、本职业的版本。
+     王庭掉落表里每个职业的同部位都在（data_raid.js:180 按 RAID_CLASSES 展开），
+     所以一定能换到；通用首饰（cls = null）本来就是全职业可用，原样返回。 */
+  function toOwnClass(it, diff, rng) {
+    const cls = ownCls();
+    if (!it || !cls || !it.raid || !it.cls || it.cls === cls) return it;
+    const table = G.RAID_ITEM;
+    const def = table && table[it.raid];
+    if (!def || !def.t) return it;
+    const alt = table[cls + '_' + def.t];
+    if (!alt || typeof raidRollItem !== 'function') return it;
+    try {
+      /* 辉耀状态沿用原来那件，避免换个职业白送（或白扣）一次 radiant 判定 */
+      const out = raidRollItem(alt.id, diff || it.raidDiff, asRng(rng), { radiant: !!it.radiant });
+      return out || it;
+    } catch (e) { console.warn('[IAP] 换成本职业装备失败', e); return it; }
   }
 
   hookUseCD(); hookRoll();
@@ -123,11 +178,24 @@
       ? ''
       : `<div class="iap-hint bad">挂钩没接上（${!R.hooked.useCD ? 'raidUseCD ' : ''}${!R.hooked.roll ? 'raidDevRollDrops' : ''}找不到），开关不会生效。</div>`;
 
+    const cls = ownCls();
+    const C = G.CLASSES;
+    const clsName = (C && C[cls] && C[cls].n) ? C[cls].n : (cls || '未选');
+    const poolOf = function (bossId) {
+      let t = [];
+      try { t = typeof raidLootTable === 'function' ? (raidLootTable(bossId) || []) : []; } catch (e) { }
+      const n = t.filter(function (i) { return !i.cls || i.cls === cls; }).length;
+      return '只剩 ' + n + ' 件（原池 ' + t.length + ' 件）';
+    };
+
     return `<div class="iap-note">永夜王庭每周每个角色、每个首领各只有 <b>1 次</b>拿装备的资格。单人挑战原本只有 <b>${dropExtra}%</b> 几率掉 1 件（基础 ${dropBase} 件）。</div>
       ${hookedTxt}
       <div class="iap-sec"><div class="iap-sechd"><b>单人挑战</b><small>只影响单人，联机团本不受影响</small></div>
         ${toggleChip('mustDrop', R.mustDrop, '必定掉落', '每个首领保底 1 件王庭装备')}
+        ${toggleChip('onlyOwn', R.onlyOwn, '只掉本职业 / 通用', '掉落池只留本职业装备与全职业通用首饰')}
         ${toggleChip('noCd', R.noCd, '无限掉落资格', '掉到装备也不消耗本周资格')}
+        <div class="iap-hint">当前职业：<b>${NS.esc(clsName)}</b>。原版掉落池 8 个职业混在一起，本职业只占 1/8，
+          掉了也只能进共用仓库；开启后池子只剩本职业 + 通用首饰。女王的首领池只有武器，过滤后 ${poolOf('queen')}，所以必定掉本职业武器。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>本周资格</b><small>第 ${NS.esc(week)} 周 · 绿色 = 还能掉</small></div>
         ${diffs}
@@ -142,10 +210,11 @@
       const act = btn.dataset.do;
       if (act.indexOf('toggle:') === 0) {
         const k = act.slice(7);
-        if (k === 'mustDrop' || k === 'noCd') {
+        if (k === 'mustDrop' || k === 'noCd' || k === 'onlyOwn') {
           R[k] = !R[k];
           savePrefs();
-          NS.toast((k === 'mustDrop' ? '必定掉落' : '无限掉落资格') + (R[k] ? ' 已开启' : ' 已关闭'));
+          const nm = k === 'mustDrop' ? '必定掉落' : k === 'onlyOwn' ? '只掉本职业 / 通用' : '无限掉落资格';
+          NS.toast(nm + (R[k] ? ' 已开启' : ' 已关闭'));
           rerender();
         }
         return;

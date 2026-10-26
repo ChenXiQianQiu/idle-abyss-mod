@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.2.0';
+  NS.version = '0.2.1';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -47,6 +47,10 @@
     get RAID_BOSS_SHORT() { return typeof RAID_BOSS_SHORT === 'object' ? RAID_BOSS_SHORT : {}; },
     get RAID_BAL() { return typeof RAID_BAL === 'object' ? RAID_BAL : null; },
     get RAID_SOLO() { return typeof RAID_SOLO === 'object' ? RAID_SOLO : null; },
+    /* 王庭掉落表：RAID_ITEM 按 id 查定义（含 cls / t），RAID_JEWELS 是通用首饰与稀世 */
+    get RAID_ITEM() { return typeof RAID_ITEM === 'object' ? RAID_ITEM : null; },
+    get RAID_JEWELS() { return typeof RAID_JEWELS === 'object' ? RAID_JEWELS : null; },
+    get CLASSES() { return typeof CLASSES === 'object' ? CLASSES : null; },
     get LANGS() { return typeof LANGS === 'object' ? LANGS : { zh: '简体中文' }; },
   });
 
