@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.1.1';
+  NS.version = '0.2.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -41,6 +41,12 @@
     get LEVEL_CAP() { return LEVEL_CAP; },
     get SHARED_TABS() { return SHARED_TABS; },
     get RULES2() { return RULES2; },
+    /* 团本（永夜王庭）相关：难度表、首领表、首领简称、平衡表、单人运行态 */
+    get RAID_DIFFS() { return typeof RAID_DIFFS === 'object' ? RAID_DIFFS : []; },
+    get RAID_BOSSES() { return typeof RAID_BOSSES === 'object' ? RAID_BOSSES : []; },
+    get RAID_BOSS_SHORT() { return typeof RAID_BOSS_SHORT === 'object' ? RAID_BOSS_SHORT : {}; },
+    get RAID_BAL() { return typeof RAID_BAL === 'object' ? RAID_BAL : null; },
+    get RAID_SOLO() { return typeof RAID_SOLO === 'object' ? RAID_SOLO : null; },
     get LANGS() { return typeof LANGS === 'object' ? LANGS : { zh: '简体中文' }; },
   });
 

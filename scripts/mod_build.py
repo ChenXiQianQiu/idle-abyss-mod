@@ -30,6 +30,7 @@ MOD_JS = [
     "js/mod/mod_resources.js",
     "js/mod/mod_equip.js",
     "js/mod/mod_progress.js",
+    "js/mod/mod_raid.js",
     "js/mod/mod_panel.js",
     "js/mod/mod_boot.js",
 ]
