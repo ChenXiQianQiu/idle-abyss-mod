@@ -18,3 +18,6 @@ LICENSES.chromium.html
 /build/
 *.log
 .tmp_commit_msg.txt
+
+# ===== 本地记忆 / 会话数据 =====
+/.workbuddy-ai/

@@ -112,7 +112,11 @@
     tabEl.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab.key));
     let html = '';
     try { html = tab.render(); }
-    catch (e) { html = `<div class="iap-empty bad">渲染失败：${NS.esc(e && e.message)}</div>`; console.warn('[IAP] render', e); }
+    catch (e) {
+      html = `<div class="iap-empty bad">渲染失败：${NS.esc(e && e.message)}</div>`;
+      console.warn('[IAP] render', e);
+      try { reportErr('[IAP] 渲染失败(' + tab.key + '): ' + (e && (e.stack || e.message))); } catch (e2) { }
+    }
     bodyEl.innerHTML = '';
     paneRoot = NS.el('div', 'iap-pane');
     paneRoot.innerHTML = html;
