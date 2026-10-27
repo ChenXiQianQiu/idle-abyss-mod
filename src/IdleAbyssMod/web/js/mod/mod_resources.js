@@ -2,10 +2,11 @@
 /* ============================================================
    mod_resources.js — 资源页
    ------------------------------------------------------------
-   可改：金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 扭蛋券 / 强化祝福 /
-        王庭锭 / 王庭碎片（三档难度）/ 宝石（6 种 × 5 品级）。
-   字段出处（存档结构）：state.js 的 newState()（gold / souls / rift.keys /
-   gacha.tickets / gacha.bless）与 newAccount()（shards / gems / raid.ingots / raid.frag）。
+   可改：金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 钥匙碎片 / 扭蛋券 / 强化祝福 /
+        王庭锭 / 王庭碎片（三档难度）/ 最后的余烬 / 宝石（6 种 × 5 品级）。
+   字段出处（存档结构）：state.js 的 newState()（gold / souls / rift.keys / rift.frag /
+   gacha.tickets / gacha.bless）与 newAccount()（shards / gems / raid.ingots / raid.frag）；
+   最后的余烬在账号档的 A.ultra.embers（ultra.js:29 ultraNormAccount 里规范化）。
    魂晶与宝石是账号级数据，S.shards / S.gems 是 state.js bindAccount() 挂上去的
    存取器，写 S.shards 等价于写 A.shards，所以这里统一走 S，让游戏自己处理落盘。
    ============================================================ */
@@ -29,6 +30,12 @@
     {
       key: 'keys', name: '秘境钥匙', sub: '上限 50（读档时会被夹住）',
       get: () => ((G.S || {}).rift || {}).keys, set: v => { G.S.rift.keys = v; }, max: G.KEY_CAP,
+    },
+    {
+      /* combat.js:323 keyShard()：满 KEY_SHARDS(10) 个就自动换成 1 把钥匙，
+         所以正常状态下碎片最多 9 个；这里按 9 封顶，避免出现「10/10 却不换」的怪状态。 */
+      key: 'keyFrag', name: '钥匙碎片', sub: '精英掉落 · 满 10 个自动换 1 把钥匙',
+      get: () => ((G.S || {}).rift || {}).frag, set: v => { G.S.rift.frag = v; }, max: 9,
     },
     {
       key: 'tickets', name: '扭蛋券', sub: '扭蛋机抽奖用',
@@ -55,6 +62,25 @@
     {
       key: 'fragM', name: '王庭碎片 · 神话', sub: '团本碎片 · 账号共用',
       get: () => (((G.A || {}).raid || {}).frag || {}).m, set: v => { G.A.raid.frag.m = v; }, max: 1e9,
+    },
+    {
+      /* 最后的余烬 = A.ultra.embers（ultra.js:157），超高难本每个首领每周首杀给，
+         用于铁匠的「终焉升华」（ultraAscCost 每次 1 个，ULTRA_ASC.embers）。
+         ultraNormAccount（ultra.js:29）只认「> 0 的整数」，写浮点会在读档时被清零，
+         所以这里 Math.floor；A.ultra 不存在时按 ultraNewAcc() 的结构补一个完整的，
+         否则 ultra.js 里 Object.keys(A.ultra.sig) 这类代码会炸。 */
+      key: 'embers', name: '最后的余烬', sub: '超高难本 · 终焉升华 · 账号共用',
+      get: () => (((G.A || {}).ultra || {}).embers),
+      set: v => {
+        const A = G.A;
+        if (!A) return;
+        if (!A.ultra || typeof A.ultra !== 'object') {
+          A.ultra = (typeof ultraNewAcc === 'function' ? ultraNewAcc() : null)
+            || { intro: false, week: 0, prog: 0, best: 0, name: '', cleared: false, embers: 0, got: {}, wall: [], sig: {} };
+        }
+        A.ultra.embers = Math.max(0, Math.floor(v));
+      },
+      max: 1e6,
     },
   ];
 
