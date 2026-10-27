@@ -102,26 +102,30 @@
   function affRows(it) {
     const list = it.aff || [];
     const rows = list.map(function (f, i) {
-      /* raid:1 = 王庭特效词条，值由 RAID_EFFECTS 表决定，而且读档时 raidItemFix 会把它
-         整条重建（raid_items.js:380-383），手改存不下来，所以只读。 */
+      /* raid:1 = 装备卡上带 ◆ 的那几条，才是真正的「固定词条」：值由 RAID_EFFECTS 表定义，
+         而且读档时 raidItemFix 会先 filter 掉再整条重建（raid_items.js:380-383），
+         手改存不下来，所以只读。 */
       if (f.raid) {
         return `<div class="iap-aff ro"><span class="iap-affk">◆ ${statName(f.k)}</span>
-          <span class="iap-affv">${valTxt(f.v, f.k)}</span><span class="iap-range">王庭特效 · 由装备表定义</span></div>`;
+          <span class="iap-affv">${valTxt(f.v, f.k)}</span>
+          <span class="iap-range">固定词条 · 由装备表定义<br><i>读档时游戏会重建，手改存不下来</i></span></div>`;
       }
       const r = NS.affRangeAny(it, f) || [0, 0];
       const eff = f.v * F.plusM(it);
       const effTxt = `强化后 ${valTxt(Math.round(eff * 10) / 10, f.k)}`;
-      /* fixed:1 = 王庭那条固定生命词条，掷点范围是 spread(.85~1.15)，可以改值但不能删。 */
+      /* fixed:1 = 王庭防具那条生命词条。它**不是**固定词条（装备卡上也没有 ◆）：
+         只是一条必带的普通词缀，数值按王庭专用的 RAID_LIFE_MUL 公式掷，不适用主线
+         life 的区间。词条名锁定为生命，数值可改、也可以删。 */
       const head = f.fixed
-        ? `<span class="iap-affk" title="${statName(f.k)}">◆ ${statName(f.k)}</span>`
+        ? `<span class="iap-affk" title="王庭防具必带的生命词缀，数值按王庭生命公式掷">${statName(f.k)}</span>`
         : `<select class="iap-in sm" data-eq="affk:${i}" aria-label="词条">${
             affOptions(it, i).map(k => `<option value="${k}"${k === f.k ? ' selected' : ''}>${statName(k)}</option>`).join('')
           }</select>`;
-      const del = f.fixed ? '' : `<button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>`;
+      const del = `<button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>`;
       return `<div class="iap-aff">
         ${head}
         <input class="iap-in sm" type="text" inputmode="decimal" spellcheck="false" data-eq="affv:${i}" value="${F.pv(f.v)}">
-        <span class="iap-range">${valTxt(r[0], f.k)} ~ ${valTxt(r[1], f.k)}<br><i>${f.fixed ? '王庭固定词条 · ' + effTxt : effTxt}</i></span>
+        <span class="iap-range">${valTxt(r[0], f.k)} ~ ${valTxt(r[1], f.k)}<br><i>${f.fixed ? '王庭生命词条 · ' + effTxt : effTxt}</i></span>
         ${del}
       </div>`;
     }).join('');
@@ -240,7 +244,7 @@
     f.v = NS.roundStat(v, pct(f.k));
     f.q = r[1] > r[0] ? Math.max(0, Math.min(1, (f.v - r[0]) / (r[1] - r[0]))) : 1;
   }
-  /* 把一条词缀拉到当前能掷出的最高值（王庭固定生命词条同样适用） */
+  /* 把一条词缀拉到当前能掷出的最高值（王庭生命词条同样适用） */
   function maxAff(it, f) {
     const r = NS.affRangeAny(it, f);
     if (!r) return;
@@ -284,12 +288,31 @@
     if (typeof raidItemFix === 'function') { try { raidItemFix(it); } catch (e) { console.warn('[IAP] raidItemFix 失败', e); } }
   }
 
+  /* 点选装备：只换右侧编辑器 + 切换列表的选中态，不重建列表 DOM。
+     整页重绘会让左侧列表的滚动位置归零，点下面那几件时列表会「跳回顶部」。 */
+  function selectItem(it) {
+    EQ.sel = it;
+    const holder = document.querySelector('.iap-eqitems');
+    if (holder && EQ._list) {
+      holder.querySelectorAll('[data-idx]').forEach(function (b) {
+        const x = EQ._list[Number(b.dataset.idx)];
+        b.classList.toggle('on', !!x && x.it === it);
+      });
+    }
+    const ed = document.querySelector('.iap-eqed');
+    if (ed) {
+      const top = ed.scrollTop;
+      ed.innerHTML = editorHTML(it);
+      ed.scrollTop = top;
+    }
+  }
+
   function bind(root) {
     root.addEventListener('click', function (e) {
       const pick = e.target.closest('[data-idx]');
       if (pick && EQ._list) {
         const x = EQ._list[Number(pick.dataset.idx)];
-        if (x) { EQ.sel = x.it; rerender(); }
+        if (x) selectItem(x.it);
         return;
       }
       const chip = e.target.closest('[data-src]');
@@ -346,7 +369,8 @@
       }
       if (act.indexOf('delaff:') === 0) {
         const i = Number(act.split(':')[1]);
-        if (!it.aff[i] || it.aff[i].raid || it.aff[i].fixed) return;
+        /* 只有 ◆ 固定词条不能删（读档会被重建，删了也白删）；生命词条是普通词缀，可以删。 */
+        if (!it.aff[i] || it.aff[i].raid) return;
         it.aff.splice(i, 1); NS.apply(false); rerender(); return;
       }
       if (act === 'addsock') {

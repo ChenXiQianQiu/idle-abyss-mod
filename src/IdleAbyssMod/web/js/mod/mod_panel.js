@@ -105,8 +105,30 @@
     });
   }
 
-  function renderBody() {
+  /* 记下各滚动容器的位置。装备页有两个独立滚动区：左侧列表（.iap-eqitems）
+     和整页（.iap-body），重绘时必须一起还原，否则点一下列表下面的装备，
+     滚动条就跳回顶上去了。 */
+  const SCROLLERS = ['.iap-eqitems', '.iap-eqed'];
+  function grabScroll() {
+    const st = { body: bodyEl.scrollTop, sub: [] };
+    SCROLLERS.forEach(function (sel) {
+      const el = bodyEl.querySelector(sel);
+      st.sub.push(el ? el.scrollTop : 0);
+    });
+    return st;
+  }
+  function putScroll(st) {
+    if (!st) return;
+    bodyEl.scrollTop = st.body;
+    SCROLLERS.forEach(function (sel, i) {
+      const el = bodyEl.querySelector(sel);
+      if (el) el.scrollTop = st.sub[i] || 0;
+    });
+  }
+
+  function renderBody(keepScroll) {
     if (!root) return;
+    const st = keepScroll ? grabScroll() : null;
     const tab = NS.tabs.find(t => t.key === P.tab) || NS.tabs[0];
     curTab = tab;
     tabEl.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab.key));
@@ -121,12 +143,13 @@
     paneRoot = NS.el('div', 'iap-pane');
     paneRoot.innerHTML = html;
     bodyEl.appendChild(paneRoot);
-    bodyEl.scrollTop = 0;
+    if (st) putScroll(st); else bodyEl.scrollTop = 0;
     if (tab.bind) { try { tab.bind(paneRoot); } catch (e) { console.warn('[IAP] bind', e); } }
     lastS = NS.G.S; lastSlot = NS.G.slot;
   }
 
-  P.refresh = function () { if (P.open) renderBody(); };
+  /* 重绘保留滚动位置；切标签 / 换角色时才回到顶部 */
+  P.refresh = function () { if (P.open) renderBody(true); };
   P.show = function () {
     if (!root) build();
     root.classList.add('on');
