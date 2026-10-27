@@ -2,7 +2,7 @@
 /* ============================================================
    mod_raid.js — 团本页（永夜王庭）
    ------------------------------------------------------------
-   两个开关，都只在「单人挑战」里生效，联机团本完全走游戏原逻辑：
+   四个开关 + 一个数值，都只在「单人挑战」里生效，联机团本完全走游戏原逻辑：
 
    1) 单人必定掉落
       游戏数据（data_raid.js:56）：
@@ -34,6 +34,18 @@
       换的是整件装备（重新走 raidRollItem），不是只改 cls 字段——职业一变，
       武器名、基础值、词缀池（affRollPool 按职业取）都得跟着换。
 
+   4) 女王也掉通用首饰
+      女王的首领池只有 8 把武器（data_raid.js:126 `loot: ['weapon']`），
+      四件普通通用首饰只挂在馆长 / 女官 / 园丁 / 守夜身上（`jewel` 字段），
+      所以原版刷女王永远拿不到首饰。开关打开后，女王这一件有 50% 换成
+      随机一件普通通用首饰；已经掷出稀世的那件不覆盖。
+
+   5) 女王稀世概率
+      直接改写 RAID_BAL.relic（data_raid.js:61，默认 .01）。
+      raid_ui.js:1143 的判定读的就是这个字段，所以不用改逻辑，
+      游戏自己的「女王有掉落时把最后一件换成稀世」就按新概率走。
+      设为 100% 就是每次通关必掉永夜之心 / 女王的婚戒。
+
    实现方式：包装游戏的全局函数。游戏是经典脚本，顶层 function 声明会挂到
    window 上，raidSoloLoot 里是裸名调用，所以包装 window 上的同名属性就能生效；
    开关关掉时原样转发给保存下来的原函数，行为与未装 Mod 完全一致。
@@ -44,6 +56,8 @@
     mustDrop: !!NS.prefs.raidMustDrop,
     noCd: !!NS.prefs.raidNoCd,
     onlyOwn: !!NS.prefs.raidOnlyOwn,
+    queenJewel: !!NS.prefs.raidQueenJewel,
+    relicPct: Number.isFinite(NS.prefs.raidRelicPct) ? NS.prefs.raidRelicPct : null,   // null = 不接管，用游戏原值
     hooked: { useCD: false, roll: false },
   });
   const rerender = function () { if (NS.panel) NS.panel.refresh(); };
@@ -52,8 +66,29 @@
     NS.prefs.raidMustDrop = R.mustDrop;
     NS.prefs.raidNoCd = R.noCd;
     NS.prefs.raidOnlyOwn = R.onlyOwn;
+    NS.prefs.raidQueenJewel = R.queenJewel;
+    if (R.relicPct == null) delete NS.prefs.raidRelicPct;
+    else NS.prefs.raidRelicPct = R.relicPct;
     NS.savePrefs();
   };
+
+  /* 当前稀世概率（百分数，保留 1 位小数） */
+  const relicPctNow = function () {
+    const bal = G.RAID_BAL;
+    const v = (bal && typeof bal.relic === 'number') ? bal.relic : .01;
+    return Math.round(v * 1000) / 10;
+  };
+  /* 写 RAID_BAL.relic：游戏自己的判定逻辑不用改，概率就变了 */
+  function applyRelic(pct) {
+    const bal = G.RAID_BAL;
+    const p = Math.max(0, Math.min(100, Number(pct) || 0));
+    if (bal) bal.relic = Math.round(p * 10) / 1000;
+    R.relicPct = p;
+    savePrefs();
+    return p;
+  }
+  /* 上次设过的概率在启动时补一次：RAID_BAL 每次开游戏都是默认 0.01 */
+  if (R.relicPct != null) applyRelic(R.relicPct);
   /* 是否正处在单人挑战里（RAID_SOLO.on 由 raidSoloStart / raidSoloReset 维护） */
   const soloNow = function () {
     try { return !!(G.RAID_SOLO && G.RAID_SOLO.on); } catch (e) { return false; }
@@ -102,9 +137,32 @@
            女王刷一百次也见不到永夜之心。 */
         if (out.length) tryRelic(out, bossId, diff, rng);
       }
+      /* 女王首饰放在最后：稀世已经替换完，这里只在「不是稀世」时才换普通首饰 */
+      if (solo && R.queenJewel && bossId === 'queen' && out.length) out = swapJewel(out, diff, rng);
       return out;
     };
     R.hooked.roll = true;
+  }
+
+  /* 女王掉通用首饰：女王的池子只有 8 把武器（data_raid.js:126 loot: ['weapon']），
+     四件普通通用首饰只挂在馆长 / 女官 / 园丁 / 守夜身上（RAID_BOSSES 的 jewel 字段），
+     所以原版刷女王永远拿不到首饰。这里把女王那件以 50% 概率换成随机一件普通首饰。
+     已经掷出稀世（x_heart / x_ring）的那件不覆盖——稀世比普通首饰珍贵。 */
+  function swapJewel(out, diff, rng) {
+    const J = G.RAID_JEWELS;
+    if (!J || !out.length) return out;
+    const last = out[out.length - 1];
+    if (last && J[last.raid] && J[last.raid].relic) return out;
+    const rr = asRng(rng);
+    if (!(rr() < .5)) return out;
+    const ids = Object.keys(J).filter(function (k) { return J[k] && !J[k].relic; });
+    if (!ids.length || typeof raidRollItem !== 'function') return out;
+    try {
+      const pick = ids[Math.min(ids.length - 1, Math.floor(rr() * ids.length))];
+      const it = raidRollItem(pick, diff, rr);
+      if (it) out[out.length - 1] = it;
+    } catch (e) { console.warn('[IAP] 女王首饰替换失败', e); }
+    return out;
   }
 
   /* 复刻 raidDevRollDrops 末尾的稀世替换（data_raid.js:61 relic = .01）：
@@ -209,7 +267,7 @@
     const cls = ownCls();
     const C = G.CLASSES;
     const clsName = (C && C[cls] && C[cls].n) ? C[cls].n : (cls || '未选');
-    const relicPct = Math.round((((bal && bal.relic) || .01) * 1000)) / 10;   // 0.01 → 1
+    const relicPct = relicPctNow();                     // 0.01 → 1（百分数）
     const poolOf = function (bossId) {
       let t = [];
       try { t = typeof raidLootTable === 'function' ? (raidLootTable(bossId) || []) : []; } catch (e) { }
@@ -226,10 +284,24 @@
         <div class="iap-hint">当前职业：<b>${NS.esc(clsName)}</b>。原版掉落池 8 个职业混在一起，本职业只占 1/8，
           掉了也只能进共用仓库；开启后池子只剩本职业 + 通用首饰。
           通用首饰只挂在馆长 / 女官 / 园丁 / 守夜四个首领身上（各约 50%），门卫、宴主原本就没有首饰。
-          女王的池子只有武器，过滤后 ${poolOf('queen')}，掉的一定是本职业武器；
-          另有 <b>${relicPct}%</b> 概率把这一件换成稀世（永夜之心 / 女王的婚戒，全职业通用）。</div>
-        <div class="iap-hint">稀世只从「女王这一件掉落」里掷：开「必定掉落」后每次通关都掷一次（约 ${relicPct}%），
-          不开则只有 ${dropExtra}% × ${relicPct}% ≈ ${Math.round(dropExtra * relicPct) / 100}% 才轮得到。</div>
+          女王的池子只有武器，过滤后 ${poolOf('queen')}，掉的一定是本职业武器。</div>
+      </div>
+      <div class="iap-sec"><div class="iap-sechd"><b>女王首饰</b><small>只影响单人挑战里的永夜女王</small></div>
+        ${toggleChip('queenJewel', R.queenJewel, '女王也掉通用首饰', '女王那件有 50% 换成普通通用首饰')}
+        <div class="iap-row"><div class="iap-lab"><b>稀世概率</b><small>永夜之心 / 女王的婚戒 · 原版 1%</small></div>
+          <input class="iap-in" type="text" inputmode="decimal" spellcheck="false" data-raid="relic" value="${relicPct}" aria-label="稀世概率（百分数）">
+        </div>
+        <div class="iap-chips">
+          <button class="iap-chip${relicPct === 1 ? ' on' : ''}" data-relic="1">1%（原版）</button>
+          <button class="iap-chip${relicPct === 10 ? ' on' : ''}" data-relic="10">10%</button>
+          <button class="iap-chip${relicPct === 50 ? ' on' : ''}" data-relic="50">50%</button>
+          <button class="iap-chip${relicPct === 100 ? ' on' : ''}" data-relic="100">100%</button>
+        </div>
+        <div class="iap-hint">女王的池子只有 8 把武器（<b>loot: ['weapon']</b>），四件普通通用首饰只挂在馆长 / 女官 / 园丁 / 守夜身上，
+          所以原版刷女王拿不到首饰。开启上面那个开关后，女王那件有一半会换成首饰；稀世永远优先，不会被首饰顶掉。</div>
+        <div class="iap-hint">稀世只从「女王这一件」里掷：开「必定掉落」后每次通关都掷一次（当前 <b>${relicPct}%</b>）；
+          不开则只有 ${dropExtra}% × ${relicPct}% ≈ ${Math.round(dropExtra * relicPct) / 100}% 才轮得到。
+          设为 100% 就是每次通关必掉一件稀世。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>本周资格</b><small>第 ${NS.esc(week)} 周 · 绿色 = 还能掉</small></div>
         ${diffs}
@@ -237,18 +309,32 @@
       </div>`;
   }
 
+  const TOGGLE_NAME = {
+    mustDrop: '必定掉落',
+    onlyOwn: '只掉本职业 / 通用',
+    noCd: '无限掉落资格',
+    queenJewel: '女王也掉通用首饰',
+  };
+
   function bind(root) {
     root.addEventListener('click', function (e) {
+      /* 稀世概率的快捷档 */
+      const rl = e.target.closest('[data-relic]');
+      if (rl) {
+        const p = applyRelic(Number(rl.dataset.relic));
+        rerender();
+        NS.toast('女王稀世概率 → ' + p + '%');
+        return;
+      }
       const btn = e.target.closest('[data-do]');
       if (!btn) return;
       const act = btn.dataset.do;
       if (act.indexOf('toggle:') === 0) {
         const k = act.slice(7);
-        if (k === 'mustDrop' || k === 'noCd' || k === 'onlyOwn') {
+        if (TOGGLE_NAME[k]) {
           R[k] = !R[k];
           savePrefs();
-          const nm = k === 'mustDrop' ? '必定掉落' : k === 'onlyOwn' ? '只掉本职业 / 通用' : '无限掉落资格';
-          NS.toast(nm + (R[k] ? ' 已开启' : ' 已关闭'));
+          NS.toast(TOGGLE_NAME[k] + (R[k] ? ' 已开启' : ' 已关闭'));
           rerender();
         }
         return;
@@ -262,6 +348,15 @@
         rerender();
         return;
       }
+    });
+
+    /* 稀世概率输入框：回车 / 失焦时生效（面板里不会漏给游戏热键） */
+    root.addEventListener('change', function (e) {
+      const box = e.target;
+      if (!box.dataset || box.dataset.raid !== 'relic') return;
+      const p = applyRelic(NS.parseNum(box.value, relicPctNow()));
+      rerender();
+      NS.toast('女王稀世概率 → ' + p + '%');
     });
   }
 

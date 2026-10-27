@@ -165,13 +165,31 @@
     return `<div class="iap-sec"><div class="iap-sechd"><b>镶嵌</b><small>该部位最多 ${max} 孔</small></div>${rows || '<div class="iap-hint">没有孔。</div>'}<div class="iap-affadd">${addBtn}</div></div>`;
   }
 
+  /* 副标题：部位 · 品阶 · ilvl。
+     王庭装备单独一行说明「王庭 · 传奇 / 套装（套装名 / 特效名）」，因为它的 r = 6
+     在掉落体系里就是主线传奇（r=3）/ 套装（r=4）那一档，而「辉耀」对应上古。 */
+  function subline(it) {
+    const parts = [G.TYPE_NAME[it.t] || it.t];
+    const tag = NS.raidTag(it);
+    if (tag) {
+      parts.push('王庭 · ' + tag.kindName + (tag.setName ? '（' + tag.setName + '）' : '') + (tag.fxName ? '（' + tag.fxName + '）' : ''));
+      if (tag.radiant) parts.push('辉耀');
+    } else {
+      parts.push(G.RAR[it.r] ? G.RAR[it.r].n : '?');
+      if (it.leg) parts.push('传奇特效 ' + it.leg);
+      if (it.set) parts.push('套装 ' + it.set);
+    }
+    parts.push('ilvl ' + it.ilvl);
+    return parts.join(' · ');
+  }
+
   function editorHTML(it) {
     if (!it) return `<div class="iap-empty">左边选一件装备，或者先生成一件。</div>`;
     const raid = !!it.raid;
     const cap = F.ruleIlvl(9999);
     const head = `<div class="iap-edhd"><img src="${icon(it)}" alt="">
         <div class="iap-edname"><b style="color:${NS.rarColor(it)}">${NS.esc(NS.itemName(it))}</b>
-        <small>${G.TYPE_NAME[it.t] || it.t} · ${G.RAR[it.r] ? G.RAR[it.r].n : '?'} · ilvl ${it.ilvl}${it.leg ? ' · 传奇特效 ' + it.leg : ''}${it.set ? ' · 套装 ' + it.set : ''}</small></div>
+        <small>${NS.esc(subline(it))}</small></div>
       </div>`;
     /* 奇物（r=5）的数值来自奇物表，改品质 / 词缀会直接破坏它的语义，只开放强化 */
     if (it.odd) {
@@ -181,12 +199,18 @@
         ${numField('强化等级 +', 'data-eq="plus"', it.plus || 0, `0 ~ ${G.MAX_PLUS}`)}</div>`;
     }
     const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${raid ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
+    /* 王庭：r 固定 6（品质按钮禁用），但「辉耀」就是它的上古，可以自由开关。
+       游戏里王庭没有太古（raid_items.js:373 硬写 anc = false），所以不给太古按钮。 */
     const flags = raid
-      ? '<span class="iap-hint">王庭装备没有上古 / 太古，用下面词缀区的「词缀全满」把数值顶满</span>'
+      ? `<button class="iap-chip${it.radiant ? ' on' : ''}" data-do="radiant" title="王庭版的上古：基础值 / 词缀上限 / 固定生命 / ◆ 特效一起 ×1.3">辉耀（数值 ×1.3）</button>
+         <span class="iap-hint">王庭品阶 = 主线的传奇 / 套装档，「辉耀」= 主线的上古。王庭没有太古。</span>`
       : `
       <button class="iap-chip${it.anc ? ' on' : ''}" data-do="anc">上古（数值 ×1.3）</button>
       <button class="iap-chip${it.primal ? ' on' : ''}" data-do="primal">太古（词缀满值）</button>`;
-    return head + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>改品质会改变词缀区间与词缀条数上限</small></div>
+    const secNote = raid
+      ? '王庭品质与基础值由品阶倍率决定，不开放手改'
+      : '改品质会改变词缀区间与词缀条数上限';
+    return head + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>${secNote}</small></div>
         <div class="iap-chips">${rBtns}</div>
         <div class="iap-chips">${flags}</div>
         ${numField('物品等级', 'data-eq="ilvl"', it.ilvl, `1 ~ ${cap}`)}
@@ -224,6 +248,42 @@
     f.q = 1;
   }
 
+  /* ---------- 王庭「辉耀」 ----------
+     raid_items.js:317-339 里 radiant 同时乘在四处：
+       · 基础数值  a = 4 × P(ilvl) × spread(.85~1.15) × baseScale × power × rm
+       · 随机词缀  raidRollAff：top = A.f(ilvl) × 1.1 × rm，cap × 1.25（不是 1.3）
+       · 固定生命  RAID_LIFE_MUL × lifePower × P(ilvl) × spread × rm
+       · ◆ 特效    raidItemFix 里 Math.round(v × rm)
+     所以不能只翻标志位：基础值等比缩放、随机词缀按掷点位置 q 重算（raidRollAff
+     本身就是 v = lo + (hi - lo) × q，保留 q 重算等价于「同一掷点换个区间」）、
+     固定生命等比缩放、◆ 特效交给 raidItemFix 重建。来回切能完全还原。 */
+  function setRadiant(it, on) {
+    const bal = (typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL) ? RAID_ITEM_BAL : { radiantMul: 1.3 };
+    const mul = Number(bal.radiantMul) || 1.3;
+    const k = (on ? mul : 1) / (it.radiant ? mul : 1);
+    const prev = Object.assign({}, it, { radiant: !!it.radiant });     // 浅拷贝，只用来算旧区间
+    it.radiant = !!on;
+    if (k !== 1) {
+      ['min', 'max', 'armor'].forEach(function (f) {
+        if (Number.isFinite(it[f])) it[f] = it[f] * k;
+      });
+      if (Number.isFinite(it.block)) it.block = Math.round(it.block * k * 10) / 10;
+      if (it.imp && Number.isFinite(it.imp.v)) it.imp.v = Math.round(it.imp.v * k * 10) / 10;
+    }
+    (it.aff || []).forEach(function (f) {
+      if (f.raid) return;                                    // ◆ 特效由 raidItemFix 按新 rm 重建
+      if (f.fixed) { f.v = Math.max(1, Math.round(f.v * k)); return; }
+      const nr = NS.affRangeOf(f.k, it), or = NS.affRangeOf(f.k, prev);
+      if (!nr || !or) return;
+      let q = Number.isFinite(f.q) ? f.q : (or[1] > or[0] ? (f.v - or[0]) / (or[1] - or[0]) : 1);
+      q = Math.max(0, Math.min(1, q));
+      f.v = NS.roundStat(nr[0] + (nr[1] - nr[0]) * q, pct(f.k));
+      f.q = q;
+    });
+    /* 读档时游戏自己也会走这一步（raid_items.js:360），所以这里调用完全一致 */
+    if (typeof raidItemFix === 'function') { try { raidItemFix(it); } catch (e) { console.warn('[IAP] raidItemFix 失败', e); } }
+  }
+
   function bind(root) {
     root.addEventListener('click', function (e) {
       const pick = e.target.closest('[data-idx]');
@@ -257,6 +317,14 @@
           if (it.primal) maxAff(it, f); else clampAff(it, f);
         });
         NS.apply(false); rerender(); return;
+      }
+      /* 王庭辉耀：等价于主线的「上古」，四类数值一起 ×1.3 / ÷1.3 */
+      if (act === 'radiant') {
+        if (!it.raid) { NS.toast('只有王庭装备才有辉耀', true); return; }
+        setRadiant(it, !it.radiant);
+        NS.apply(false); rerender();
+        NS.toast('辉耀' + (it.radiant ? ' 已开启（数值 ×1.3）' : ' 已关闭（回到普通王庭）'));
+        return;
       }
       /* 词缀全满：不碰任何标志位，只把数值顶到区间上限。王庭装备靠它（没有太古可用）。 */
       if (act === 'maxaff') {

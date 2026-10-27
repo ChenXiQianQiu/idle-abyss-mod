@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.2.2';
+  NS.version = '0.3.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -47,9 +47,13 @@
     get RAID_BOSS_SHORT() { return typeof RAID_BOSS_SHORT === 'object' ? RAID_BOSS_SHORT : {}; },
     get RAID_BAL() { return typeof RAID_BAL === 'object' ? RAID_BAL : null; },
     get RAID_SOLO() { return typeof RAID_SOLO === 'object' ? RAID_SOLO : null; },
-    /* 王庭掉落表：RAID_ITEM 按 id 查定义（含 cls / t），RAID_JEWELS 是通用首饰与稀世 */
+    /* 王庭掉落表：RAID_ITEM 按 id 查定义（含 cls / t / kind / set），RAID_JEWELS 是通用首饰与稀世。
+       RAID_SETS 是八套王庭套装的键与名字，RAID_EFFECTS 是每件的王庭特效（◆ 固定词条的来源）。 */
     get RAID_ITEM() { return typeof RAID_ITEM === 'object' ? RAID_ITEM : null; },
     get RAID_JEWELS() { return typeof RAID_JEWELS === 'object' ? RAID_JEWELS : null; },
+    get RAID_SETS() { return typeof RAID_SETS === 'object' ? RAID_SETS : null; },
+    get RAID_EFFECTS() { return typeof RAID_EFFECTS === 'object' ? RAID_EFFECTS : null; },
+    get RAID_RAR() { return typeof RAID_RAR === 'number' ? RAID_RAR : 6; },
     get CLASSES() { return typeof CLASSES === 'object' ? CLASSES : null; },
     get LANGS() { return typeof LANGS === 'object' ? LANGS : { zh: '简体中文' }; },
   });
@@ -176,6 +180,34 @@
     }
     const n = [0, 2, 4, 4, 4][it.r] || 4;
     return n + (it.r >= 3 && it.ilvl >= 40 ? 1 : 0);
+  };
+
+  /* ---------- 王庭装备的品阶归属 ----------
+     王庭装备的 r = 6（data_items.js 的 RAR[6]「王庭」），在掉落体系里相当于主线
+     传奇（r=3）/ 套装（r=4）那一档，用 kind 区分：
+       kind 'set'   → 王庭套装件（头 / 肩 / 胸 / 手 / 腿），套装键存在 it.rset
+       kind 'leg'   → 带王庭特效（◆ 固定词条）的传奇件
+       kind 'jewel' → 四件通用首饰；'relic' → 两件稀世
+     王庭没有 anc / primal（raidItemFix 里硬写 anc = false），取而代之的是
+     radiant「辉耀」，等价于主线的「上古」：基础值 / 词缀 / 固定生命 / ◆ 特效全部 ×1.3。 */
+  NS.raidTag = function (it) {
+    if (!it || !it.raid) return null;
+    const def = (G.RAID_ITEM || {})[it.raid] || {};
+    const sets = G.RAID_SETS || {};
+    const fxs = G.RAID_EFFECTS || {};
+    const setKey = it.rset || def.set || null;
+    const setRow = def.cls && sets[def.cls];
+    const kind = def.kind || (setKey ? 'set' : 'leg');
+    const fx = fxs[it.raid] || null;
+    return {
+      kind: kind,
+      kindName: kind === 'set' ? '套装' : kind === 'jewel' ? '通用首饰' : kind === 'relic' ? '稀世' : '传奇',
+      setKey: setKey,
+      setName: (setRow && setRow.key === setKey) ? setRow.name : '',
+      fxKey: it.leg || (fx && fx.key) || null,
+      fxName: fx ? fx.name : '',
+      radiant: !!it.radiant,
+    };
   };
 
   /* ---------- 装备集合（列表用） ---------- */
