@@ -99,6 +99,29 @@
     return out.length ? `<div class="iap-sec"><div class="iap-sechd"><b>基础数值</b><small>区间 = 该等级 / 品质能掷出的范围</small></div>${out.join('')}</div>` : '';
   }
 
+  /* 词条下拉框。王庭装备额外给一个「生命·王庭」选项，等价于装备自带的那条
+     王庭生命词条（数值按 RAID_LIFE_MUL 掷，比普通 life 词缀大一个量级）；
+     同一件装备最多一条，选了就把别处的清掉。 */
+  function affSelect(it, i, f) {
+    const fixed = !!(f.fixed && !f.raid);
+    const other = (it.aff || []).some((g, j) => j !== i && g.fixed && !g.raid);
+    const opts = [];
+    /* 只有带 RAID_LIFE_MUL 的部位（护甲类、首饰）才有王庭生命词条；武器 / 副手没有 */
+    if (it.raid && (!other || fixed) && (fixed || NS.raidLifeRange(it))) {
+      opts.push({ v: '__life_fixed', n: '生命·王庭' });
+    }
+    affOptions(it, i).forEach(function (k) {
+      if (fixed && k === 'life') return;                  // 已经是王庭生命，不再列普通生命
+      opts.push({ v: k, n: statName(k) || k });
+    });
+    /* 当前词条不在候选池里（换职业 / 老存档）时补一项，否则下拉框会错误地显示成第一项 */
+    if (!fixed && !opts.some(x => x.v === f.k)) opts.unshift({ v: f.k, n: statName(f.k) || f.k || '?' });
+    const cur = fixed ? '__life_fixed' : f.k;
+    return `<select class="iap-in sm" data-eq="affk:${i}" aria-label="词条">${
+      opts.map(x => `<option value="${x.v}"${x.v === cur ? ' selected' : ''}>${x.n}</option>`).join('')
+    }</select>`;
+  }
+
   function affRows(it) {
     const list = it.aff || [];
     const rows = list.map(function (f, i) {
@@ -115,18 +138,12 @@
       const effTxt = `强化后 ${valTxt(Math.round(eff * 10) / 10, f.k)}`;
       /* fixed:1 = 王庭防具那条生命词条。它**不是**固定词条（装备卡上也没有 ◆）：
          只是一条必带的普通词缀，数值按王庭专用的 RAID_LIFE_MUL 公式掷，不适用主线
-         life 的区间。词条名锁定为生命，数值可改、也可以删。 */
-      const head = f.fixed
-        ? `<span class="iap-affk" title="王庭防具必带的生命词缀，数值按王庭生命公式掷">${statName(f.k)}</span>`
-        : `<select class="iap-in sm" data-eq="affk:${i}" aria-label="词条">${
-            affOptions(it, i).map(k => `<option value="${k}"${k === f.k ? ' selected' : ''}>${statName(k)}</option>`).join('')
-          }</select>`;
-      const del = `<button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>`;
+         life 的区间。词条本身可以在下拉框里换（换成别的就变成普通词缀）。 */
       return `<div class="iap-aff">
-        ${head}
+        ${affSelect(it, i, f)}
         <input class="iap-in sm" type="text" inputmode="decimal" spellcheck="false" data-eq="affv:${i}" value="${F.pv(f.v)}">
         <span class="iap-range">${valTxt(r[0], f.k)} ~ ${valTxt(r[1], f.k)}<br><i>${f.fixed ? '王庭生命词条 · ' + effTxt : effTxt}</i></span>
-        ${del}
+        <button class="iap-btn ghost" data-do="delaff:${i}" title="删除这条词缀">×</button>
       </div>`;
     }).join('');
     const cap = NS.affCap(it);
@@ -410,10 +427,23 @@
         }
       } else if (kind === 'affk') {
         const i = Number(arg), f = it.aff[i];
-        if (f && !f.raid && !f.fixed) {
-          f.k = el.value;
-          const r = NS.affRangeOf(f.k, it) || [1, 1];
-          f.v = NS.roundStat(Math.min(f.v, r[1]), pct(f.k));
+        if (f && !f.raid) {
+          if (el.value === '__life_fixed') {
+            /* 选「生命·王庭」：挂上 fixed 标记，数值改走 RAID_LIFE_MUL 那条公式。
+               该部位没有生命乘数（武器 / 副手）就直接拒绝，避免写成 1 点生命。
+               同一件装备只保留一条，别处的先摘掉。 */
+            if (!NS.raidLifeRange(it)) { NS.toast('这个部位没有王庭生命词条', true); return; }
+            it.aff.forEach(function (g, j) { if (j !== i && g.fixed && !g.raid) delete g.fixed; });
+            f.k = 'life';
+            f.fixed = 1;
+          } else if (G.AFF[el.value]) {
+            if (f.fixed) delete f.fixed;                 // 换成普通词条，fixed 标记要摘掉
+            f.k = el.value;
+          } else {
+            return;                                      // 空值 / 不在词缀表里的值：原样不动
+          }
+          const r = NS.affRangeAny(it, f) || [1, 1];
+          f.v = NS.roundStat(NS.clampNum(Number(f.v) || 0, r[0], r[1]), pct(f.k));
           f.q = r[1] > r[0] ? Math.max(0, Math.min(1, (f.v - r[0]) / (r[1] - r[0]))) : 1;
         }
       } else if (kind === 'affv') {
