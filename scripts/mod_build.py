@@ -32,6 +32,7 @@ MOD_JS = [
     "js/mod/mod_progress.js",
     "js/mod/mod_raid.js",
     "js/mod/mod_ultra.js",
+    "js/mod/mod_camp.js",
     "js/mod/mod_panel.js",
     "js/mod/mod_boot.js",
 ]

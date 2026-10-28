@@ -120,8 +120,10 @@ select.iap-in { text-align: left; }
 .iap-gen { border: 1px solid #241d22; background: #171216; padding: 4px 8px 7px; }
 .iap-genhd { color: var(--gold, #c9a13a); padding-bottom: 3px; }
 .iap-genrow { display: flex; gap: 4px; margin-bottom: 3px; }
-.iap-genrow .iap-in { width: 100%; flex: 1 1 auto; }
+.iap-genrow .iap-in { width: 100%; flex: 1 1 auto; min-width: 0; }
 .iap-genrow .iap-btn { flex: 0 0 auto; white-space: nowrap; padding: 1px 12px; }
+/* 生成器里的开关按钮（王庭的「辉耀」）不能被下拉框挤扁 */
+.iap-genrow .iap-chip { flex: 0 0 auto; white-space: nowrap; }
 .iap-eqtop { display: flex; flex-direction: column; gap: 4px; }
 .iap-eqtop .iap-in { width: 100%; text-align: left; }
 .iap-eqitems { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto;
@@ -162,6 +164,15 @@ select.iap-in { text-align: left; }
 .iap-cd { font-style: normal; font-size: 10px; line-height: 13px; padding: 1px 5px;
   border: 1px solid #3a2e24; color: #6a5e52; background: #171216; }
 .iap-cd.on { color: #8fd36a; border-color: #3f5a2a; background: #1b2416; }
+
+/* ---------- 营地页 ---------- */
+.iap-btn:disabled { opacity: .4; cursor: default; }
+.iap-btn:disabled:hover { background: var(--stone3, #322a31); color: var(--ink, #e8dcc0); }
+.iap-lab i { font-style: normal; }
+/* 派遣进度条：和游戏营地里的那条同色，宽度由 campPct() 给 */
+.iap-cbar { flex: 0 0 96px; display: block; height: 9px; background: #0f0b0f; border: 1px solid #2e272d; }
+.iap-cbar > i { display: block; height: 100%; background: linear-gradient(#a8883a 0 1px, #6e5a24 1px); }
+.iap-note code { color: var(--gold, #c9a13a); font: inherit; }
 
 /* ---------- 底部 ---------- */
 .iap-ft { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; }

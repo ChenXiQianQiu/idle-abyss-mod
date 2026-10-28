@@ -9,13 +9,25 @@
        items.js rollItem 的掷点区间内
      · 增删改随机词缀，数值夹在 affRange()（王庭走 raidRollAff）的区间内
      · 镶嵌 / 替换宝石（数量上限取 SOCKET_MAX）
-     · 用游戏自己的 rollItem() 生成一件全新装备再细调
+     · 用游戏自己的生成器造一件新装备再细调：主线 rollItem / 王庭 raidRollItem /
+       奇物 rollOddity，三种来源的产出规格与正常掉落完全一致
    所有区间都直接调用游戏的公式，改出来的装备和正常掉落同规格。
    ============================================================ */
 (function () {
   const NS = window.IAP, G = NS.G, F = NS.fn;
-  const EQ = (NS.eq = { sel: null, src: 'all', q: '' });
+  const EQ = (NS.eq = {
+    sel: null, src: 'all', q: '',
+    /* 生成器的表单状态。放在这里而不是只读 DOM：重绘（选装备 / 换品质 / 生成完）
+       会把左侧重建，不记下来的话每次都要重新选部位和难度。 */
+    gen: { src: 'main', t: 'weapon', r: 3, ilvl: 0, rid: '', diff: 'n', radiant: false, odd: '' },
+  });
   const SRC_FILTERS = [['all', '全部'], ['eq', '已装备'], ['inv', '背包'], ['stash', '仓库'], ['shared', '共用']];
+  /* 容量上限，照 state.js:7 的 INV_MAX / STASH_MAX 与 state.js:8 的 SHARED_TAB_SIZE */
+  const LIM = {
+    inv: function () { return typeof INV_MAX === 'number' ? INV_MAX : 120; },
+    stash: function () { return typeof STASH_MAX === 'number' ? STASH_MAX : 56; },
+    tab: function () { return typeof SHARED_TAB_SIZE === 'number' ? SHARED_TAB_SIZE : 56; },
+  };
 
   const icon = function (it) { try { return typeof itemIconURL === 'function' ? itemIconURL(it) : ''; } catch (e) { return ''; } };
   const pct = function (k) { try { return F.statIsPct(k); } catch (e) { return false; } };
@@ -23,25 +35,126 @@
   const valTxt = function (v, k) { return F.pv(v) + (pct(k) ? '%' : ''); };
   const rerender = function () { if (NS.panel) NS.panel.refresh(); };
 
-  /* ---------- 左侧列表 ---------- */
+  /* ---------- 生成器 ----------
+     三种来源，都调游戏自己的生成器，产出的规格与正常掉落完全一致：
+       · 主线  rollItem(ilvl, r, t, cls)                  items.js:114（品质 / 词缀 / 基础值全在这）
+       · 王庭  raidRollItem(id, diff, rng, { radiant })   raid_items.js:303
+       · 奇物  rollOddity(k, ilvl)                        oddity.js:17
+     王庭的 id 是 `${职业}_${部位}`（data_raid.js:181），另有通用首饰 j_* 与稀世 x_*；
+     它的物品等级由难度决定（新规则三档都是 100），所以不开放 ilvl 输入。 */
+  const GEN_SRC = [['main', '主线'], ['raid', '王庭'], ['odd', '奇物']];
+  /* 部位名直接用游戏的 TYPE_NAME（data_items.js:8），别自己再抄一份 */
+  const partName = function (t) { return (G.TYPE_NAME && G.TYPE_NAME[t]) || t; };
+
+  /* 生成器表单的当前状态（ilvl 首次按最高阶段兜底，并夹在规则上限内） */
+  function genState() {
+    const g = EQ.gen, cap = F.ruleIlvl(9999);
+    if (!Number.isFinite(g.ilvl) || g.ilvl <= 0) g.ilvl = Number(G.S.maxStage) || 1;
+    g.ilvl = Math.max(1, Math.min(cap, Math.floor(g.ilvl)));
+    return g;
+  }
+
+  /* 王庭掉落表按职业分组。本职业排第一，其余按 CLASSES 的顺序；最后是通用首饰与稀世。
+     RAID_ITEMS 是 data_raid.js:177 展开的完整表（8 职业 × 9 部位 + 4 首饰 + 2 稀世）。 */
+  function raidGroups() {
+    let list = [];
+    try { list = Array.isArray(RAID_ITEMS) ? RAID_ITEMS : []; } catch (e) { list = []; }
+    const cls = (G.S && G.S.cls) || '', C = G.CLASSES || {}, order = [];
+    if (cls) order.push(cls);
+    Object.keys(C).forEach(function (c) { if (c !== cls) order.push(c); });
+    const groups = [];
+    order.forEach(function (c) {
+      const arr = list.filter(function (i) { return i.cls === c; });
+      if (!arr.length) return;
+      groups.push({ label: (c === cls ? '本职业 · ' : '') + ((C[c] && C[c].n) || c), items: arr });
+    });
+    const jew = list.filter(function (i) { return i.kind === 'jewel'; });
+    const rel = list.filter(function (i) { return i.kind === 'relic'; });
+    if (jew.length) groups.push({ label: '通用首饰（全职业）', items: jew });
+    if (rel.length) groups.push({ label: '稀世（永夜女王）', items: rel });
+    return groups;
+  }
+
+  function raidSelectHTML(g) {
+    const groups = raidGroups();
+    if (!groups.length) return `<span class="iap-hint bad">王庭掉落表不可用</span>`;
+    /* 记录里存的那件可能已经不在这张表里（换职业 / 改版），退回到第一件 */
+    if (!groups.some(gr => gr.items.some(i => i.id === g.rid))) g.rid = groups[0].items[0].id;
+    const html = groups.map(function (gr) {
+      return `<optgroup label="${NS.esc(gr.label)}">` + gr.items.map(function (i) {
+        return `<option value="${i.id}"${i.id === g.rid ? ' selected' : ''}>${NS.esc(i.name)} · ${partName(i.t)}</option>`;
+      }).join('') + '</optgroup>';
+    }).join('');
+    return `<select class="iap-in" data-gen="rid" aria-label="王庭装备">${html}</select>`;
+  }
+
+  function diffSelectHTML(g) {
+    const ds = G.RAID_DIFFS || [];
+    if (!ds.length) return '';
+    if (!ds.some(d => d.id === g.diff)) g.diff = ds[0].id;
+    return `<select class="iap-in sm" data-gen="diff" aria-label="难度">` + ds.map(function (d) {
+      return `<option value="${d.id}"${d.id === g.diff ? ' selected' : ''}>${d.n}</option>`;
+    }).join('') + '</select>';
+  }
+
+  /* 奇物下拉框：已拥有的在名字后面标出来（账号唯一，重复生成游戏不会拦，只会在读档时
+     按实际存档重建 A.odd，等于多出一份幽灵复制品）。 */
+  function oddSelectHTML(g) {
+    let O = {};
+    try { O = (typeof ODDITIES === 'object' && ODDITIES) ? ODDITIES : {}; } catch (e) { O = {}; }
+    const keys = Object.keys(O);
+    if (!keys.length) return `<span class="iap-hint bad">奇物表不可用</span>`;
+    if (keys.indexOf(g.odd) < 0) g.odd = keys[0];
+    const owned = (G.A && G.A.odd) || {};
+    return `<select class="iap-in" data-gen="odd" aria-label="奇物">` + keys.map(function (k) {
+      return `<option value="${k}"${k === g.odd ? ' selected' : ''}>${NS.esc(O[k].name)}（${partName(O[k].t)}）${owned[k] ? ' · 已拥有' : ''}</option>`;
+    }).join('') + '</select>';
+  }
+
   function genFormHTML() {
-    const S = G.S;
-    const types = ['weapon', 'offhand', 'helm', 'shoulders', 'armor', 'gloves', 'belt', 'pants', 'boots', 'ring', 'amulet'];
-    const cap = F.ruleIlvl(9999);
-    const defIlvl = Math.max(1, Math.min(cap, Number(S.maxStage) || 1));
-    const opts = types.map(t => `<option value="${t}">${G.TYPE_NAME[t] || t}</option>`).join('');
-    const rars = [0, 1, 2, 3, 4].map(r => `<option value="${r}"${r === 3 ? ' selected' : ''}>${G.RAR[r].n}</option>`).join('');
+    const g = genState();
+    const chips = GEN_SRC.map(function (p) {
+      return `<button class="iap-chip${g.src === p[0] ? ' on' : ''}" data-gensrc="${p[0]}">${p[1]}</button>`;
+    }).join('');
+    let body = '', hint = '';
+    if (g.src === 'raid') {
+      const d = (G.RAID_DIFFS || []).find(x => x.id === g.diff) || {};
+      body = `<div class="iap-genrow">${raidSelectHTML(g)}</div>
+        <div class="iap-genrow">${diffSelectHTML(g)}
+          <button class="iap-chip${g.radiant ? ' on' : ''}" data-do="genrad" title="王庭版的上古：基础值 / 词缀上限 / 固定生命 / ◆ 特效一起 ×1.3">辉耀 ×1.3</button>
+          <button class="iap-btn pri" data-do="gen">生成</button></div>`;
+      hint = `王庭装备三档都是 ilvl ${F.ruleIlvl(9999)}（新规则），难度只改品阶倍率${d.n ? '，当前 <b>' + d.n + '</b>' : ''}。
+        本职业与通用首饰进背包，别职业的进共用仓库。`;
+    } else if (g.src === 'odd') {
+      body = `<div class="iap-genrow">${oddSelectHTML(g)}</div>
+        <div class="iap-genrow">
+          <input class="iap-in sm" type="text" inputmode="numeric" data-gen="ilvl" value="${g.ilvl}" aria-label="物品等级">
+          <button class="iap-btn pri" data-do="gen">生成</button>
+        </div>`;
+      hint = `奇物是账号唯一的第 6 品质（r = 5），每件同时只存在一份；下拉框里标了「已拥有」的再生成就是多一份。`;
+    } else {
+      const types = ['weapon', 'offhand', 'helm', 'shoulders', 'armor', 'gloves', 'belt', 'pants', 'boots', 'ring', 'amulet'];
+      const opts = types.map(function (t) {
+        return `<option value="${t}"${t === g.t ? ' selected' : ''}>${G.TYPE_NAME[t] || t}</option>`;
+      }).join('');
+      const rars = [0, 1, 2, 3, 4].map(function (r) {
+        return `<option value="${r}"${r === g.r ? ' selected' : ''}>${G.RAR[r].n}</option>`;
+      }).join('');
+      body = `<div class="iap-genrow">
+          <select class="iap-in sm" data-gen="t" aria-label="部位">${opts}</select>
+          <select class="iap-in sm" data-gen="r" aria-label="品质">${rars}</select>
+        </div>
+        <div class="iap-genrow">
+          <input class="iap-in sm" type="text" inputmode="numeric" data-gen="ilvl" value="${g.ilvl}" aria-label="物品等级">
+          <button class="iap-btn pri" data-do="gen">生成</button>
+        </div>`;
+      hint = `物品等级上限 ${F.ruleIlvl(9999)}（新规则 100）；生成的装备进背包并自动选中。`;
+    }
     return `<div class="iap-gen">
       <div class="iap-genhd">生成一件新装备（走游戏自己的掉落生成器）</div>
-      <div class="iap-genrow">
-        <select class="iap-in sm" data-gen="t" aria-label="部位">${opts}</select>
-        <select class="iap-in sm" data-gen="r" aria-label="品质">${rars}</select>
-      </div>
-      <div class="iap-genrow">
-        <input class="iap-in sm" type="text" inputmode="numeric" data-gen="ilvl" value="${defIlvl}" aria-label="物品等级">
-        <button class="iap-btn pri" data-do="gen">生成</button>
-      </div>
-      <div class="iap-hint">物品等级上限 ${cap}（新规则 100）；生成的装备进背包并自动选中。</div>
+      <div class="iap-chips">${chips}</div>
+      ${body}
+      <div class="iap-hint">${hint}</div>
     </div>`;
   }
 
@@ -62,7 +175,7 @@
       return `<button class="iap-item${sel ? ' on' : ''}" data-idx="${i}" style="--c:${NS.rarColor(it)}">
         <img src="${icon(it)}" alt="">
         <span class="iap-itemtx"><b>${NS.esc(NS.itemName(it))}</b>
-        <small>${x.tag} · ${G.TYPE_NAME[it.t] || it.t} · ilvl ${it.ilvl}${it.raid ? ' · 王庭' : ''}</small></span>
+        <small>${x.tag} · ${G.TYPE_NAME[it.t] || it.t} · ilvl ${it.ilvl}${it.raid ? ' · 王庭' : ''}${it.odd ? ' · 奇物' : ''}</small></span>
       </button>`;
     }).join('') : `<div class="iap-empty sm">没有符合条件的装备</div>`;
   }
@@ -334,6 +447,9 @@
       }
       const chip = e.target.closest('[data-src]');
       if (chip) { EQ.src = chip.dataset.src; rerender(); return; }
+      /* 生成器的来源切换：主线 / 王庭 / 奇物 三套表单字段不一样，要整块重画 */
+      const gsrc = e.target.closest('[data-gensrc]');
+      if (gsrc) { genState().src = gsrc.dataset.gensrc; rerender(); return; }
       const rb = e.target.closest('[data-r]');
       if (rb && EQ.sel) {
         EQ.sel.r = Number(rb.dataset.r);
@@ -341,8 +457,12 @@
         NS.apply(false); rerender(); return;
       }
       const btn = e.target.closest('[data-do]');
-      if (!btn || !EQ.sel) return;
+      if (!btn) return;
       const act = btn.dataset.do, it = EQ.sel;
+      /* 生成不依赖右侧选中哪件装备（刚打开面板时列表是空的） */
+      if (act === 'gen') { genItem(root); return; }
+      if (act === 'genrad') { const g = genState(); g.radiant = !g.radiant; rerender(); return; }
+      if (!it) return;
       if (act === 'anc' || act === 'primal') {
         if (!Array.isArray(it.aff)) it.aff = [];
         if (act === 'primal') {
@@ -396,7 +516,6 @@
         if (it.sock.length >= max) return;
         it.sock.push(null); NS.apply(false); rerender(); return;
       }
-      if (act === 'gen') { genItem(root); return; }
     });
 
     root.addEventListener('input', function (e) {
@@ -408,7 +527,19 @@
     });
 
     root.addEventListener('change', function (e) {
-      const el = e.target, it = EQ.sel;
+      const el = e.target;
+      /* 生成器自己的字段：只更新表单状态，不影响右侧编辑器 */
+      if (el.dataset && el.dataset.gen) {
+        const g = genState(), k = el.dataset.gen;
+        if (k === 'ilvl') g.ilvl = Math.floor(NS.clampNum(NS.parseNum(el.value, g.ilvl), 1, F.ruleIlvl(9999)));
+        else if (k === 'r') g.r = Number(el.value) || 0;
+        else if (k === 't') g.t = el.value;
+        else if (k === 'rid') g.rid = el.value;
+        else if (k === 'diff') g.diff = el.value;
+        else if (k === 'odd') g.odd = el.value;
+        return;
+      }
+      const it = EQ.sel;
       if (!it || !el.dataset || !el.dataset.eq) return;
       const [kind, arg] = String(el.dataset.eq).split(':');
       const S = G.S;
@@ -461,22 +592,90 @@
     });
   }
 
-  /* 用游戏自己的 rollItem 生成，保证品质 / 词缀条数 / 基础数值全部合法 */
+  /* ---------- 生成 ---------- */
+  /* 生成物放哪儿：照 handleNew（items.js:445）的分流规则，但**跳过自动装备与自动分解**，
+     免得点一下「生成」就把身上的装备换掉。
+       本职业 / 通用 → 背包 → 个人仓库 → 共用仓库
+       别职业       → 共用仓库 → 个人仓库 → 背包
+     顺手记图鉴（codexRecordItem / raidCodexOwn），与正常掉落一致。 */
+  function putItem(it) {
+    const S = G.S, A = G.A;
+    try { if (typeof codexRecordItem === 'function') codexRecordItem(it); } catch (e) { }
+    if (it.raid && typeof raidCodexOwn === 'function') { try { raidCodexOwn(it.raid); } catch (e) { } }
+    const own = !it.cls || it.cls === S.cls;
+    const inv = S.inv || (S.inv = []), stash = S.stash || (S.stash = []);
+    const tabs = (A && A.shared && Array.isArray(A.shared.tabs)) ? A.shared.tabs : null;
+    const open = (A && A.shared && A.shared.open) || 0;
+    const tabCap = LIM.tab(), tabRoom = function () {
+      if (!tabs) return -1;
+      for (let i = 0; i < tabs.length; i++) if (i < open && tabs[i].length < tabCap) return i;
+      return -1;
+    };
+    if (own) {
+      if (inv.length < LIM.inv()) { inv.push(it); return '背包'; }
+      if (stash.length < LIM.stash()) { stash.push(it); return '个人仓库'; }
+    }
+    const ti = tabRoom();
+    if (ti >= 0) { tabs[ti].push(it); return '共用仓库 ' + (ti + 1); }
+    if (stash.length < LIM.stash()) { stash.push(it); return '个人仓库'; }
+    inv.push(it); return '背包';
+  }
+
+  /* 从 DOM 里再读一遍 ilvl（change 事件在按钮 mousedown 时已经触发过，
+     这里兜一层：万一用户直接回车，也不会用到上一次的值） */
+  function readGen(root) {
+    const g = genState();
+    const box = root.querySelector('[data-gen="ilvl"]');
+    if (box) g.ilvl = Math.floor(NS.clampNum(NS.parseNum(box.value, g.ilvl), 1, F.ruleIlvl(9999)));
+    return g;
+  }
+
+  function done(it, where) {
+    EQ.sel = it;
+    NS.apply(false);                       // refreshStats → markAll → save（save 里会连带写账号档）
+    NS.toast('已生成 ' + NS.itemName(it) + ' → ' + where);
+    rerender();
+  }
+
   function genItem(root) {
+    const g = readGen(root);
+    if (g.src === 'raid') return genRaid(g);
+    if (g.src === 'odd') return genOdd(g);
+    return genMain(g);
+  }
+
+  /* 主线：用游戏自己的 rollItem，保证品质 / 词缀条数 / 基础数值全部合法 */
+  function genMain(g) {
     const S = G.S;
-    const tSel = root.querySelector('[data-gen="t"]'), rSel = root.querySelector('[data-gen="r"]'), iSel = root.querySelector('[data-gen="ilvl"]');
-    const t = tSel ? tSel.value : 'weapon';
-    const r = rSel ? Number(rSel.value) : 2;
-    const ilvl = Math.floor(NS.clampNum(NS.parseNum(iSel && iSel.value, 1), 1, F.ruleIlvl(9999)));
-    if ((S.inv || []).length >= 120) { NS.toast('背包已满（120 格），先清一点', true); return; }
+    if ((S.inv || []).length >= LIM.inv()) { NS.toast('背包已满（' + LIM.inv() + ' 格），先清一点', true); return; }
     let it = null;
-    try { it = rollItem(ilvl, r, t, S.cls); } catch (e) { console.warn('[IAP] rollItem 失败', e); }
+    try { it = rollItem(g.ilvl, g.r, g.t, S.cls); } catch (e) { console.warn('[IAP] rollItem 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
     S.inv.push(it);
-    EQ.sel = it;
-    NS.apply(false);
-    NS.toast('已生成 ' + NS.itemName(it));
-    rerender();
+    done(it, '背包');
+  }
+
+  /* 王庭：raidRollItem 只吃 id + 难度，等级与品阶倍率都由它自己算。
+     rng 必须显式传 Math.random —— 不传时它会退回 mulberry32(1)，每次生成的装备一模一样。 */
+  function genRaid(g) {
+    if (typeof raidRollItem !== 'function') { NS.toast('找不到 raidRollItem，生成器不可用', true); return; }
+    if (!g.rid) { NS.toast('王庭掉落表是空的', true); return; }
+    let it = null;
+    try { it = raidRollItem(g.rid, g.diff, Math.random, { radiant: !!g.radiant }); } catch (e) { console.warn('[IAP] raidRollItem 失败', e); }
+    if (!it) { NS.toast('生成失败', true); return; }
+    done(it, putItem(it));
+  }
+
+  /* 奇物：rollOddity 内部走 rollItem，再改写 r = 5 / odd / 清空词缀，
+     并把职业按 oddClassFor()（职业专属、副手类型）定下来。 */
+  function genOdd(g) {
+    if (typeof rollOddity !== 'function') { NS.toast('找不到 rollOddity，生成器不可用', true); return; }
+    let it = null;
+    try { it = rollOddity(g.odd, g.ilvl); } catch (e) { console.warn('[IAP] rollOddity 失败', e); }
+    if (!it) { NS.toast('生成失败', true); return; }
+    /* 账号唯一性登记：不写的话本局游戏还以为没拥有，会再掉一件同样的 */
+    try { if (typeof oddClaim === 'function') oddClaim(it); } catch (e) { }
+    done(it, putItem(it));
   }
 
   NS.registerTab({ key: 'eq', name: '装备', render: render, bind: bind });

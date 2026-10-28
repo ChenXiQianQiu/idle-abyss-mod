@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.4.0';
+  NS.version = '0.5.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -85,6 +85,12 @@
     try { F.refresh(!!full); } catch (e) { console.warn('[IAP] refreshStats 失败', e); }
     try { F.markAll(); } catch (e) { }
     try { F.save(); } catch (e) { console.warn('[IAP] save 失败', e); }
+  };
+  /* 只写账号档（account.json）。营地派遣、好感这类数据全在 A 里，
+     走 save() 会顺带做一次角色存档和属性快照，没必要。 */
+  NS.saveAcc = function () {
+    try { return typeof saveAccount === 'function' ? !!saveAccount() : false; }
+    catch (e) { console.warn('[IAP] saveAccount 失败', e); return false; }
   };
 
   /* ---------- 数值解析 ----------
