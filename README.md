@@ -9,9 +9,13 @@
 
 ### 方式一：下载分享包（推荐）
 
-到 [Releases](../../releases) 下载 `深渊调试台-v0.7.0-分享包.zip`，解压到**游戏根目录**
+到 [Releases](../../releases) 下载 `IdleAbyssMod-v0.7.0-share.zip`，解压到**游戏根目录**
 （能看到 `IdleAbyssPrincesses.exe` 和 `resources` 文件夹的那一层），双击 `安装.bat`。
 需要本机有 Python 3。装完启动游戏即可（Steam 版从库里启动，其他版本直接运行 exe 也行）。
+
+> 附件名是英文的：GitHub 会把带中文的附件名丢掉，所以 Release 里叫
+> `IdleAbyssMod-v<版本>-share.zip`，本地 `dist/` 里仍叫 `深渊调试台-v<版本>-分享包.zip`，
+> 两个是同一个包。
 
 卸载双击 `还原.bat`，或在 Steam 里「验证文件完整性」。
 
