@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.6.3';
+  NS.version = '0.7.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -204,6 +204,34 @@
     return n + (it.r >= 3 && it.ilvl >= 40 ? 1 : 0);
   };
 
+  /* ---------- 神话仓库（游戏 2.4.1 新增，账号级 A.myth.vault） ----------
+     2.4.1 起神话装备不再跟着角色走：新掉落直接进账号的「神话仓库」，取出时按当前职业
+     换算底子（mythAdapt）。装备页把它当成第五个来源，可以像背包一样改词缀。
+     仓库不存在时返回空数组（老版本 / 还没拿到过神话），调用方不用判空。 */
+  NS.mythVault = function () {
+    const A = G.A;
+    if (!A || !A.myth || typeof A.myth !== 'object') return [];
+    if (!Array.isArray(A.myth.vault)) A.myth.vault = [];
+    return A.myth.vault;
+  };
+  /* 神话的词条池（myth.js:75 mythAffPool）：白字和职业无关 —— 主属性写成「主属性」、
+     单一元素写成「全元素」，所以池子里不能出现 str / dex / int 和具体元素。
+     返回 null 表示「这件不是神话」，调用方走普通的 affPool。 */
+  NS.mythAffPool = function (it, used) {
+    if (!it || !it.myth) return null;
+    const u = used || [];
+    try { if (typeof mythAffPool === 'function') return mythAffPool(it.t, u); } catch (e) { }
+    /* 兜底（游戏版本没有 mythAffPool 时）：过滤掉三个主属性和具体元素 */
+    const T = G.AFF || {}, pri = ['str', 'dex', 'int'];
+    return Object.keys(T).filter(function (k) {
+      const A = T[k];
+      if (!A || pri.indexOf(k) >= 0) return false;
+      if (A.element && k !== 'ele') return false;
+      if (u.indexOf(k) >= 0) return false;
+      return A.s === 'all' || (Array.isArray(A.s) && A.s.indexOf(it.t) >= 0);
+    });
+  };
+
   /* ---------- 王庭装备的品阶归属 ----------
      王庭装备的 r = 6（data_items.js 的 RAR[6]「王庭」），在掉落体系里相当于主线
      传奇（r=3）/ 套装（r=4）那一档，用 kind 区分：
@@ -248,6 +276,12 @@
         (tab || []).forEach(function (it) { if (it) out.push({ it: it, src: 'shared', tab: i, tag: '共用' + (i + 1) }); });
       });
     }
+    /* 神话仓库（账号级，2.4.1）：别的职业放进去的神话也在这里，改词缀前先看清职业 */
+    NS.mythVault().forEach(function (it) {
+      if (!it) return;
+      const other = it.cls && S.cls && it.cls !== S.cls;
+      out.push({ it: it, src: 'vault', tag: '神话仓库' + (other ? '（' + ((G.CLASSES && G.CLASSES[it.cls] && G.CLASSES[it.cls].n) || it.cls) + '）' : '') });
+    });
     return out;
   };
   NS.findItem = function (sel) {
@@ -257,6 +291,7 @@
     if (sel.src === 'eq') return (S.equip || {})[sel.slot] || null;
     if (sel.src === 'inv') return (S.inv || []).find(function (x) { return x && x.id === sel.id; }) || null;
     if (sel.src === 'stash') return (S.stash || []).find(function (x) { return x && x.id === sel.id; }) || null;
+    if (sel.src === 'vault') return NS.mythVault().find(function (x) { return x && x.id === sel.id; }) || null;
     if (sel.src === 'shared' && A && A.shared && A.shared.tabs[sel.tab])
       return A.shared.tabs[sel.tab].find(function (x) { return x && x.id === sel.id; }) || null;
     return null;

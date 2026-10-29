@@ -174,6 +174,7 @@
     const ownN = Object.keys(a.own || {}).length;
     const titleN = Object.keys(a.titles || {}).length;
     const pactN = Object.keys(a.pact || {}).reduce(function (s, k) { return s + (Number(a.pact[k]) || 0); }, 0);
+    const vaultN = NS.mythVault().length;
     const codexPct = Math.round(titleN * B.codex * 1000) / 10;
     const lv = riftLv();
     const ok = isNew();
@@ -219,8 +220,10 @@
           （满 ${B.pactMax} 星后折深渊结晶）。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>收集进度</b><small>账号共用</small></div>
-        <div class="iap-row"><div class="iap-lab"><b>神兽装备</b><small>神话（r = 7）· 账号唯一 · 不能分解</small></div>
+        <div class="iap-row"><div class="iap-lab"><b>神兽装备</b><small>神话（r = 7）· 账号唯一 · 2.4.1 起进神话仓库，可洗练 / 分解</small></div>
           <div class="iap-cur"><i data-m="own">${ownN}/${total}</i></div></div>
+        <div class="iap-row"><div class="iap-lab"><b>神话仓库</b><small>账号共用 · 新掉落直接进这里，取出时按当前职业换算底子</small></div>
+          <div class="iap-cur"><i data-m="vault">${vaultN}</i></div></div>
         <div class="iap-row"><div class="iap-lab"><b>神契总星数</b><small>重复拿到同一只 +1 星，满 ${B.pactMax} 星后折深渊结晶</small></div>
           <div class="iap-cur"><i data-m="pact">${pactN}/${total * B.pactMax}</i></div></div>
         <div class="iap-row"><div class="iap-lab"><b>山海图录</b><small>每个称号：伤害与最大生命各 +${B.codex * 100}%（独立乘区，团本也算）</small></div>
@@ -234,7 +237,8 @@
         <div class="iap-hint">「解锁全部称号」只写 A.myth.titles，不动当前佩戴的称号，也不发装备；
           图录加成会立刻重算。「神契全满」把每只神兽的神契都设成 ${B.pactMax} 星（神格数值 ×${(1 + B.pactStep * B.pactMax).toFixed(1)}），
           只对已经穿在身上的神话装备生效。<br>
-          想要神话装备本身：去<b>装备页 → 生成 → 神话</b>，51 只神兽的专属装备都能直接造一件。</div>
+          想要神话装备本身：去<b>装备页 → 生成 → 神话</b>，51 只神兽的专属装备都能直接造一件，
+          造出来直接进神话仓库（装备页也有「神话仓库」这个来源，可以改词缀）。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>神兽一览</b><small>绿 = 已拥有装备 · ★ = 神契 · ✦ = 已有称号</small></div>
         ${beastChips(a)}
@@ -305,6 +309,7 @@
     const set = function (k, v) { const el = root.querySelector(`[data-m="${k}"]`); if (el) el.textContent = v; };
     const titleN = Object.keys(a.titles || {}).length;
     set('own', `${Object.keys(a.own || {}).length}/${total}`);
+    set('vault', String(NS.mythVault().length));
     set('pact', `${Object.keys(a.pact || {}).reduce(function (s, k) { return s + (Number(a.pact[k]) || 0); }, 0)}/${total * ((B && B.pactMax) || 5)}`);
     set('title', `${titleN}/${total}`);
     set('codex', `+${Math.round(titleN * ((B && B.codex) || 0) * 1000) / 10}%`);

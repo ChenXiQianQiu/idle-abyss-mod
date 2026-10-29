@@ -21,7 +21,7 @@
        会把左侧重建，不记下来的话每次都要重新选部位和难度。 */
     gen: { src: 'main', t: 'weapon', r: 3, ilvl: 0, rid: '', diff: 'n', radiant: false, odd: '', myth: '' },
   });
-  const SRC_FILTERS = [['all', '全部'], ['eq', '已装备'], ['inv', '背包'], ['stash', '仓库'], ['shared', '共用']];
+  const SRC_FILTERS = [['all', '全部'], ['eq', '已装备'], ['inv', '背包'], ['stash', '仓库'], ['shared', '共用'], ['vault', '神话仓库']];
   /* 容量上限，照 state.js:7 的 INV_MAX / STASH_MAX 与 state.js:8 的 SHARED_TAB_SIZE */
   const LIM = {
     inv: function () { return typeof INV_MAX === 'number' ? INV_MAX : 120; },
@@ -160,10 +160,11 @@
         <div class="iap-genrow">
           <button class="iap-btn pri" data-do="gen">生成</button>
         </div>`;
-      hint = `神话是第 7 品质（r = 7），底子按<b>史诗辉耀王庭</b>的公式生成：账号唯一、不能分解，
-        每件带一条神格（转化 / 改写 / 共鸣）。重复拿同一只会转成神契，这里不做保底，
-        点一次就出。当前职业 <b>${NS.esc((G.CLASSES && G.CLASSES[G.S.cls] && G.CLASSES[G.S.cls].n) || G.S.cls)}</b>；
-        想换职业用共用仓库取回，游戏会自动按新职业重掷底子。${MB.from ? '' : '<br><b>没读到 MYTH_BAL，生成器可能不完整。</b>'}`;
+      hint = `神话是第 7 品质（r = 7），底子按<b>史诗辉耀王庭</b>的公式生成：账号唯一，
+        每件带一条神格（转化 / 改写 / 共鸣）。2.4.1 起生成的神话直接进账号的<b>神话仓库</b>
+        （背包页的「神话」页签），在那里取出、洗练或分解；白字和职业无关，换职业不用换算。
+        已经拥有的那只不能再生成（下拉框标了「已拥有」）。当前职业 <b>${NS.esc((G.CLASSES && G.CLASSES[G.S.cls] && G.CLASSES[G.S.cls].n) || G.S.cls)}</b>。
+        ${MB.from ? '' : '<br><b>没读到 MYTH_BAL，生成器可能不完整。</b>'}`;
     } else if (g.src === 'odd') {
       body = `<div class="iap-genrow">${oddSelectHTML(g)}</div>
         <div class="iap-genrow">
@@ -316,7 +317,12 @@
     const used = it.aff.filter((f, i) => i !== idx && !f.raid && !f.fixed).map(f => f.k);
     const cls = it.cls || (G.S && G.S.cls) || (typeof DEFAULT_HERO === 'function' ? DEFAULT_HERO() : 'warrior');
     let pool = [];
-    try { pool = F.affPool(it.t, used, cls) || []; } catch (e) { pool = Object.keys(G.AFF); }
+    /* 神话（2.4.1）：白字和职业无关，主属性写成「主属性」、单一元素写成「全元素」。
+       走游戏自己的 mythAffPool，池子里不会出现 str / dex / int 和具体元素 ——
+       就算写了，读档时 mythNeutralAff 也会改回去，不如一开始就不给选。 */
+    const mp = NS.mythAffPool(it, used);
+    if (mp) pool = mp;
+    else try { pool = F.affPool(it.t, used, cls) || []; } catch (e) { pool = Object.keys(G.AFF); }
     if (cur && pool.indexOf(cur.k) < 0) pool = [cur.k].concat(pool);
     return pool;
   }
@@ -389,7 +395,10 @@
       ? `<button class="iap-chip${it.radiant ? ' on' : ''}" data-do="radiant" title="王庭版的上古：基础值 / 词缀上限 / 固定生命 / ◆ 特效一起 ×1.3">辉耀（数值 ×1.3）</button>
          <span class="iap-hint">王庭品阶 = 主线的传奇 / 套装档，「辉耀」= 主线的上古。王庭没有太古。</span>`
       : myth
-        ? `<span class="iap-hint">神话：底子按<b>史诗辉耀王庭</b>生成，品质与基础值不开放手改；词缀可以改，区间已按辉耀（×1.3）算。</span>`
+        ? `<span class="iap-hint">神话：底子按<b>史诗辉耀王庭</b>生成，品质与基础值不开放手改；词缀可以改，区间已按辉耀（×1.3）算。
+           <br>2.4.1 起白字和职业无关 —— 主属性写成<b>「主属性」</b>（谁穿算谁）、单一元素写成<b>「全元素」</b>，
+           所以下拉框里没有力量 / 敏捷 / 智力，也没有具体元素；换职业不用换算。
+           装备存在账号的<b>神话仓库</b>里，改完会同时写账号档。</span>`
         : `
       <button class="iap-chip${it.anc ? ' on' : ''}" data-do="anc">上古（数值 ×1.3）</button>
       <button class="iap-chip${it.primal ? ' on' : ''}" data-do="primal">太古（词缀满值）</button>`;
@@ -419,6 +428,10 @@
   }
 
   /* ---------- 交互 ---------- */
+  /* 提交改动。NS.apply 走游戏的 save()，而 save() 是 `saveAccount() && store.set(...)`
+     （state.js）—— 账号档先写，所以神话仓库（A.myth.vault）里的改动也会一起落盘，
+     不用额外补 saveAccount。 */
+  function commit() { NS.apply(false); }
   function clampAff(it, f) {
     const r = NS.affRangeAny(it, f);
     if (!r) return;
@@ -506,7 +519,7 @@
       if (rb && EQ.sel) {
         EQ.sel.r = Number(rb.dataset.r);
         (EQ.sel.aff || []).forEach(f => { if (!f.raid) clampAff(EQ.sel, f); });
-        NS.apply(false); rerender(); return;
+        commit(); rerender(); return;
       }
       const btn = e.target.closest('[data-do]');
       if (!btn) return;
@@ -528,13 +541,13 @@
           if (f.raid) return;
           if (it.primal) maxAff(it, f); else clampAff(it, f);
         });
-        NS.apply(false); rerender(); return;
+        commit(); rerender(); return;
       }
       /* 王庭辉耀：等价于主线的「上古」，四类数值一起 ×1.3 / ÷1.3 */
       if (act === 'radiant') {
         if (!it.raid) { NS.toast('只有王庭装备才有辉耀', true); return; }
         setRadiant(it, !it.radiant);
-        NS.apply(false); rerender();
+        commit(); rerender();
         NS.toast('辉耀' + (it.radiant ? ' 已开启（数值 ×1.3）' : ' 已关闭（回到普通王庭）'));
         return;
       }
@@ -543,7 +556,7 @@
         if (!Array.isArray(it.aff)) it.aff = [];
         let n = 0;
         it.aff.forEach(function (f) { if (!f.raid) { maxAff(it, f); n++; } });
-        NS.apply(false); rerender();
+        commit(); rerender();
         NS.toast(n ? `${n} 条词缀已拉满` : '这件装备没有可改的词缀', !n);
         return;
       }
@@ -554,19 +567,19 @@
         if (!pool.length) { NS.toast('该部位没有可加的词缀了', true); return; }
         const k = pool[0], r = NS.affRangeOf(k, it) || [1, 1];
         const f = { k: k, v: NS.roundStat(r[1], pct(k)), q: 1 };
-        it.aff.push(f); NS.apply(false); rerender(); return;
+        it.aff.push(f); commit(); rerender(); return;
       }
       if (act.indexOf('delaff:') === 0) {
         const i = Number(act.split(':')[1]);
         /* 只有 ◆ 固定词条不能删（读档会被重建，删了也白删）；生命词条是普通词缀，可以删。 */
         if (!it.aff[i] || it.aff[i].raid) return;
-        it.aff.splice(i, 1); NS.apply(false); rerender(); return;
+        it.aff.splice(i, 1); commit(); rerender(); return;
       }
       if (act === 'addsock') {
         const max = G.SOCKET_MAX[it.t] || 0;
         it.sock = it.sock || [];
         if (it.sock.length >= max) return;
-        it.sock.push(null); NS.apply(false); rerender(); return;
+        it.sock.push(null); commit(); rerender(); return;
       }
     });
 
@@ -641,7 +654,7 @@
         const i = Number(arg), g = it.sock[i];
         if (g) g.q = Number(el.value) || 0;
       }
-      NS.apply(false); rerender();
+      commit(); rerender();
     });
   }
 
@@ -733,33 +746,47 @@
   }
 
   /* 神话：mythRollItem(k, cls) = mythBase(k, cls, 随机种子)，底子就是「史诗辉耀王庭」的
-     raidRollItem，再剥掉王庭身份换成 r = 7（myth.js:39）。神格、神契都在 myth.js 里算，
-     这里只负责造出来并登记账号唯一性。
-     A.myth.own 一定要写：不写的话游戏还以为没拥有过，下一只神兽掉落会再给一件同款。 */
+     raidRollItem，再剥掉王庭身份换成 r = 7（myth.js:39）。2.4.1 起 mythBase 末尾还会过一遍
+     mythNeutralAff —— 白字写成「主属性 / 全元素」，和职业无关，换职业不用换算。
+     神话账号唯一，2.4.1 的新掉落一律进账号的「神话仓库」A.myth.vault（items.js handleNew 里
+     r = 7 的分支就是 mythVaultAdd 然后 return 'vault'）。这里照同一条路走：
+     塞进背包 / 共用仓库的话，下次读档 mythNormAccount 会把共用仓库里的搬走，
+     mythReconcile 还会把 own 清掉。 */
   function genMyth(g) {
     if (typeof mythRollItem !== 'function') { NS.toast('找不到 mythRollItem（游戏版本低于 2.4.0？）', true); return; }
     const S = G.S, A = G.A;
     if (!A) { NS.toast('账号档还没就绪', true); return; }
     const k = g.myth;
     if (!k) { NS.toast('没有选中神兽', true); return; }
+    /* mythNormAccount() 会把 A.myth 补成完整结构（own / pact / pity / titles / kills / vault），
+       顺带把共用仓库里的神话收进仓库 —— 和游戏读档走的是同一条路。 */
+    let acc = null;
+    try { acc = typeof mythNormAccount === 'function' ? mythNormAccount() : A.myth; } catch (e) { acc = null; }
+    if (!acc || typeof acc !== 'object') acc = A.myth = { own: {}, pact: {}, pity: {}, titles: {}, kills: {}, vault: [] };
+    if (!acc.own || typeof acc.own !== 'object') acc.own = {};
+    if (!Array.isArray(acc.vault)) acc.vault = [];
+    /* 神话账号唯一：仓库里已经有同款就不再生成（mythVaultAdd 也会拒绝，这里提前给出原因） */
+    if (acc.vault.some(function (x) { return x && x.myth === k; })) {
+      NS.toast('这只神兽的神话装备已经在神话仓库里了（账号唯一）', true);
+      return;
+    }
     let it = null;
     try { it = mythRollItem(k, S.cls); } catch (e) { console.warn('[IAP] mythRollItem 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
-    /* mythNormAccount() 会顺带把 A.myth 补成完整结构（own / pact / pity / titles / kills） */
-    let acc = null;
-    try { acc = typeof mythNormAccount === 'function' ? mythNormAccount() : A.myth; } catch (e) { acc = null; }
-    if (!acc || typeof acc !== 'object') acc = A.myth = { own: {}, pact: {}, pity: {}, titles: {}, kills: {} };
-    if (!acc.own || typeof acc.own !== 'object') acc.own = {};
     const first = !acc.own[k];
     acc.own[k] = true;
     if (first) {
       try { if (typeof ach === 'function') ach('ACH_MYTH'); } catch (e) { }
       try {
         const K = G.MYTH_KEYS;
-        if (K.length && K.every(x => acc.own[x]) && typeof ach === 'function') ach('ACH_MYTH50');
+        if (K.length && K.every(function (x) { return acc.own[x]; }) && typeof ach === 'function') ach('ACH_MYTH50');
       } catch (e) { }
     }
-    done(it, putItem(it) + (first ? '' : '（这只已经拥有过，重复件）'));
+    /* 进账号级神话仓库；没有 mythVaultAdd（2.4.0）时退回原来的「背包 / 仓库」分流。
+       落盘交给 done() 里的 NS.apply —— 游戏的 save() 会先写账号档再写角色档。 */
+    let where = '神话仓库';
+    if (!(typeof mythVaultAdd === 'function' && mythVaultAdd(it))) where = putItem(it);
+    done(it, where);
   }
 
   NS.registerTab({ key: 'eq', name: '装备', render: render, bind: bind });
