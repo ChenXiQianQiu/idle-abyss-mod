@@ -5,12 +5,14 @@
 `安装.bat`，脚本会在对方机器上用他自己的 `resources/app.asar` 现场注入，
 因此不受游戏版本差异影响，也不会把游戏资源二次分发出去。
 
+包内说明只给一份纯文本 `安装说明.txt`（分享对象要的只是怎么装、怎么还原）；
+`share/Mod修改内容说明.md` 是给自己维护的功能台账，不进包。
+
 用法：
     python scripts/mod_pack.py            # 生成 dist/深渊调试台-v<版本>-分享包.zip
     python scripts/mod_pack.py --asar     # 额外把 build/app.asar 也塞进包里（约 100MB，不推荐）
 """
 import os
-import shutil
 import sys
 import zipfile
 
@@ -22,7 +24,6 @@ import mod_build  # noqa: E402  复用 MOD_JS / MOD_CSS / 版本文件路径，�
 MOD_DIR = os.path.join(ROOT, "src", "IdleAbyssMod")
 VER_FILE = os.path.join(MOD_DIR, "version.txt")
 DIST = os.path.join(ROOT, "dist")
-SHARE_DOC = os.path.join(ROOT, "share", "Mod修改内容说明.md")
 
 INSTALL_BAT = r"""@echo off
 chcp 936 >nul
@@ -128,59 +129,65 @@ echo.
 pause
 """
 
-README = """# 深渊调试台 v{ver} · 安装说明
+INSTALL_TXT = """深渊调试台 v{ver}
+《深渊放置姬 / Idle Abyss Princesses》游戏内调试面板
 
-《深渊放置姬 / Idle Abyss Princesses》的游戏内调试面板，按 **F1** 开关。
-所有改动**即时写入存档**，改完直接玩就行，不需要重启游戏。
+按 F1 打开 / 关闭。所有改动立刻写进存档，改完直接玩，不用重启游戏。
 
-## 一、安装（约 1 分钟）
 
-1. **先完全退出游戏**（包括右下角托盘里的图标）。
-2. 把压缩包里的所有文件解压到**游戏根目录** —— 就是能看到
-   `IdleAbyssPrincesses.exe` 和 `resources` 文件夹的那个目录。
-   - Steam 库 → 右键游戏 → 管理 → 浏览本地文件，可以直接打开这个目录。
-3. 双击 **`安装.bat`**，等它跑完看到「安装完成」。
-4. **通过 Steam 启动游戏**（直接双击 exe 会因为 Steam 初始化失败而闪退，这不是 Mod 的问题）。
-5. 进入游戏后按 **F1** 打开面板。
+一、安装（约 1 分钟）
+------------------------------------------------------------
+1. 先完全退出游戏（右下角托盘图标也要退出）
+2. 把压缩包里的文件全部解压到「游戏根目录」
+   也就是能看到 IdleAbyssPrincesses.exe 和 resources 文件夹的那一层
+   打开方法：Steam 库 → 右键游戏 → 管理 → 浏览本地文件
+3. 双击 安装.bat，等它跑完，看到「安装完成」就行
+4. 从 Steam 启动游戏
+   （直接双击 exe 会因为 Steam 初始化失败而闪退，这不是 Mod 的问题）
+5. 进游戏后按 F1 打开面板
 
-> 安装器需要 **Python 3**（一次性装好即可）。没装的话 `安装.bat` 会提示下载地址，
-> 安装时记得勾选 `Add python.exe to PATH`。
+安装器需要 Python 3，一次性装好即可。没装的话 安装.bat 会提示下载地址，
+安装时记得勾选 Add python.exe to PATH。
 
-## 二、卸载 / 还原
 
-- 双击 **`还原.bat`**，会用安装时自动备份的 `resources/app.asar.orig` 还原原版；
-- 或者在 Steam 里对游戏「验证文件完整性」，效果一样（会顺便覆盖掉 Mod）。
+二、卸载 / 还原
+------------------------------------------------------------
+双击 还原.bat，会用安装时自动备份的 resources\\app.asar.orig 还原原版。
+或者在 Steam 里对游戏「验证文件完整性」，效果一样（会顺便覆盖掉 Mod）。
 
-## 三、注意
 
-- **Steam 校验或游戏更新会覆盖 `app.asar`**，Mod 会消失，重新跑一次 `安装.bat` 即可。
-- 这个包**不包含任何游戏文件**，注入时用的是你自己机器上的 `resources/app.asar`，
-  所以不绑定具体游戏版本；但游戏大版本更新后 Mod 可能失效，等新版本再装即可。
-- 分享包只动了 `resources/app.asar` 里的 `web/` 部分（新增 Mod 脚本 + 在 `index.html`
-  末尾挂一行 `<script>`），不碰存档格式。装之前建议顺手备份一下
-  `%APPDATA%/IdleAbyssPrincesses/`（`save.json`、`account.json` 都在里面）。
-- 单人可用；联机（Steam 联机团本）时建议关掉相关开关，免得数据不同步。
+三、注意
+------------------------------------------------------------
+· Steam 校验或游戏更新会覆盖 app.asar，Mod 会消失，重新跑一次 安装.bat 即可。
+· 这个包不含任何游戏文件。注入时用的是你自己机器上的 resources\\app.asar，
+  所以不挑游戏版本；但游戏大版本更新后 Mod 可能失效，等新版本再装。
+· 只改 resources\\app.asar 里的 web/ 部分（新增脚本 + 在 index.html 末尾挂一行
+  script），不动存档格式。装之前建议顺手备份一下
+  %APPDATA%\\IdleAbyssPrincesses\\（save.json、account.json 都在里面）。
+· 单人玩随便开。联机（Steam 团本）时建议把相关开关关掉，免得数据不同步。
 
-## 四、功能一览
 
-完整功能说明见包内 `Mod修改内容说明.md`，这里只列面板页签：
+四、面板页签
+------------------------------------------------------------
+资源  金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 钥匙碎片 / 扭蛋券 / 强化祝福 /
+      王庭锭与碎片 / 最后的余烬 / 深渊结晶 / 宝石
+装备  品质·上古·太古 / 物品等级 / 强化 / 基础数值 / 词缀（含「词缀全满」）/
+      镶嵌 / 生成新装备（主线·王庭·奇物·神话）
+进度  等级 / 巅峰 / 阶段 / 折磨档位 / 自由属性点
+团本  单人必定掉落 / 无限掉落资格 / 本周资格面板
+终焉  超高难本周奖励 / 终焉词条自选（升华与重选）
+营地  派遣立即完成 / 好感一键全满
+秘境  100 层起必定神兽 / 150 层起必定真身 / 指定神兽 /
+      专属装备必出 / 专属称号必出
 
-| 页签 | 干什么 |
-| --- | --- |
-| 资源 | 金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 扭蛋券 / 强化祝福 / 王庭锭与碎片 / 最后的余烬 / 宝石 |
-| 装备 | 改品质·上古·太古、物品等级、强化、基础数值、词缀（含「词缀全满」）、镶嵌、生成新装备（主线 / 王庭 / 奇物 / 神话） |
-| 进度 | 等级 / 巅峰 / 阶段 / 折磨档位 / 自由属性点 |
-| 团本 | 单人必定掉落、无限掉落资格、本周资格面板 |
-| 终焉 | 超高难本周奖励、终焉词条自选 |
-| 营地 | 派遣立即完成、好感一键全满 |
-| 秘境 | 必定神兽 / 必定真身、指定神兽、掉落保底 |
 
-## 五、装完没反应？
-
-1. 确认是按 `F1`（部分笔记本要按 `Fn + F1`）。
-2. 看日志 `%APPDATA%/IdleAbyssPrincesses/logs/main.log`，搜 `[IAP]`：
-   有 `[IAP] 深渊调试台 v{ver} loaded` 说明 Mod 已加载；没有就是没注入成功，重跑 `安装.bat`。
-3. 确认游戏是**从 Steam 启动**的。
+五、按 F1 没反应？
+------------------------------------------------------------
+1. 确认按的是 F1（部分笔记本要按 Fn + F1）
+2. 打开日志 %APPDATA%\\IdleAbyssPrincesses\\logs\\main.log，搜 [IAP]
+   有「[IAP] 深渊调试台 v{ver} loaded」说明 Mod 已加载；
+   没有就是没注入成功，重跑 安装.bat
+3. 确认游戏是从 Steam 启动的
 """
 
 
@@ -194,8 +201,7 @@ def collect():
     items = []
     items.append(("安装.bat", None))
     items.append(("还原.bat", None))
-    items.append(("安装说明.md", None))
-    items.append(("Mod修改内容说明.md", SHARE_DOC))
+    items.append(("安装说明.txt", None))
     for rel in ("scripts/mod_build.py", "scripts/asar_extract.py"):
         items.append((rel, os.path.join(ROOT, rel.replace("/", os.sep))))
     items.append(("src/IdleAbyssMod/version.txt", VER_FILE))
@@ -220,7 +226,9 @@ def pack(with_asar=False):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         z.writestr("安装.bat", INSTALL_BAT.replace("\n", "\r\n").encode("gbk"))
         z.writestr("还原.bat", RESTORE_BAT.replace("\n", "\r\n").encode("gbk"))
-        z.writestr("安装说明.md", README.format(ver=ver).replace("\n", "\r\n").encode("utf-8"))
+        # 说明用纯文本 + UTF-8 BOM + CRLF：老版本记事本也能正常显示中文
+        z.writestr("安装说明.txt",
+                   b"\xef\xbb\xbf" + INSTALL_TXT.format(ver=ver).replace("\n", "\r\n").encode("utf-8"))
         for arc, path in items:
             if path is None:
                 continue
@@ -234,7 +242,7 @@ def pack(with_asar=False):
     # 自检：解压目录里必须能找到安装器依赖的东西
     with zipfile.ZipFile(out) as z:
         names = set(z.namelist())
-        need = {"安装.bat", "还原.bat", "安装说明.md", "scripts/mod_build.py",
+        need = {"安装.bat", "还原.bat", "安装说明.txt", "scripts/mod_build.py",
                 "src/IdleAbyssMod/version.txt"}
         need |= {"src/IdleAbyssMod/web/" + r for r in mod_build.MOD_JS + mod_build.MOD_CSS}
         lack = sorted(need - names)
