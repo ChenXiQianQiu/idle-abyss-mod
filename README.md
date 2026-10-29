@@ -11,7 +11,7 @@
 
 到 [Releases](../../releases) 下载 `深渊调试台-v0.6.3-分享包.zip`，解压到**游戏根目录**
 （能看到 `IdleAbyssPrincesses.exe` 和 `resources` 文件夹的那一层），双击 `安装.bat`。
-需要本机有 Python 3。装完从 **Steam** 启动游戏。
+需要本机有 Python 3。装完启动游戏即可（Steam 版从库里启动，其他版本直接运行 exe 也行）。
 
 卸载双击 `还原.bat`，或在 Steam 里「验证文件完整性」。
 
@@ -65,7 +65,7 @@ share/                   对外说明文档
 
 ## 注意
 
-- 必须**通过 Steam 启动**游戏，直接运行 exe 会因 steamworks 初始化失败而静默退出。
+- Steam 是**可选**的：游戏在没有 Steam 的环境下照常运行，只是没有成就、云同步与联机团本。
 - Steam 校验或游戏更新会覆盖 `app.asar`，Mod 消失，重新跑一次安装即可。
 - 联机（Steam 团本）时建议关掉相关开关，免得数据不同步。改存档前请自行备份
   `%APPDATA%/IdleAbyssPrincesses/`。

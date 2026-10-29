@@ -92,8 +92,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   安装完成
-echo   进入游戏后按 F1 打开 / 关闭调试面板
-echo   记得通过 Steam 启动游戏
+echo   进游戏后按 F1 打开 / 关闭调试面板
 echo ============================================
 echo.
 pause
@@ -142,8 +141,7 @@ INSTALL_TXT = """深渊调试台 v{ver}
    也就是能看到 IdleAbyssPrincesses.exe 和 resources 文件夹的那一层
    打开方法：Steam 库 → 右键游戏 → 管理 → 浏览本地文件
 3. 双击 安装.bat，等它跑完，看到「安装完成」就行
-4. 从 Steam 启动游戏
-   （直接双击 exe 会因为 Steam 初始化失败而闪退，这不是 Mod 的问题）
+4. 启动游戏（Steam 版从库里启动，其他版本直接运行 exe 也可以）
 5. 进游戏后按 F1 打开面板
 
 安装器需要 Python 3，一次性装好即可。没装的话 安装.bat 会提示下载地址，
@@ -187,7 +185,7 @@ INSTALL_TXT = """深渊调试台 v{ver}
 2. 打开日志 %APPDATA%\\IdleAbyssPrincesses\\logs\\main.log，搜 [IAP]
    有「[IAP] 深渊调试台 v{ver} loaded」说明 Mod 已加载；
    没有就是没注入成功，重跑 安装.bat
-3. 确认游戏是从 Steam 启动的
+3. 还是不行就重跑一次 安装.bat（Steam 校验或游戏更新会把 app.asar 换回原版）
 """
 
 
