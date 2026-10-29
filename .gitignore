@@ -21,3 +21,6 @@ LICENSES.chromium.html
 
 # ===== 本地记忆 / 会话数据 =====
 /.workbuddy-ai/
+
+# ===== 分享包产物 =====
+/dist/
