@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.5.0';
+  NS.version = '0.6.3';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -56,6 +56,13 @@
     get RAID_RAR() { return typeof RAID_RAR === 'number' ? RAID_RAR : 6; },
     get CLASSES() { return typeof CLASSES === 'object' ? CLASSES : null; },
     get LANGS() { return typeof LANGS === 'object' ? LANGS : { zh: '简体中文' }; },
+    /* 传奇秘境 / 神话（data_myth.js、myth.js）：平衡表、神兽表、键列表、秘境高层常量。
+       游戏版本低于 2.4.0 时这些全是 undefined，取到的是 null / []，页面据此提示。 */
+    get MYTH_BAL() { return typeof MYTH_BAL === 'object' ? MYTH_BAL : null; },
+    get MYTH() { return typeof MYTH === 'object' ? MYTH : null; },
+    get MYTH_KEYS() { return Array.isArray(MYTH_KEYS) ? MYTH_KEYS : []; },
+    get MYTH_REALMS() { return Array.isArray(MYTH_REALMS) ? MYTH_REALMS : []; },
+    get RIFT_DEEP() { return typeof RIFT_DEEP === 'object' ? RIFT_DEEP : null; },
   });
 
   /* ---------- 游戏函数的安全包装 ---------- */
@@ -117,13 +124,20 @@
        · 主线词缀 → items.js 的 affRange()（含传奇 / 套装 ×1.1、上古 ×1.3、硬上限 cap）
        · 王庭词缀 → raid_items.js 的 raidRollAff()（×1.1，光辉 radiant 再乘 radiantMul）
      返回值 [下限, 上限]，上限即「这件装备在当前等级与品质下能掷出的最高值」。 */
+  /* 神话装备（r = 7）：底子按「史诗辉耀王庭」生成，it.raid 被删掉、it.radiant 也被清成 false，
+     但词缀 / 基础值 / 固定生命全都是按辉耀的倍率掷出来的。所以凡是「王庭特殊待遇」的判定，
+     都要把神话一起算进来，否则装备页会按主线的低区间去夹，一改就把数值压下去。 */
+  NS.isMyth = function (it) { return !!(it && it.myth); };
+  /* 是否按辉耀（×1.3）算：王庭看 radiant，神话恒为真。 */
+  NS.radFlag = function (it) { return !!(it && (it.radiant || it.myth)); };
   NS.affRangeOf = function (k, it) {
     const A = G.AFF[k];
     if (!A || !it) return null;
-    if (it.raid) {
+    if (it.raid || it.myth) {
       const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { radiantMul: 1.3 };
-      const top = A.f(it.ilvl) * 1.1 * (it.radiant ? bal.radiantMul : 1);
-      const cap = A.cap ? A.cap * (it.radiant ? 1.25 : 1) : Infinity;
+      const rad = NS.radFlag(it);
+      const top = A.f(it.ilvl) * 1.1 * (rad ? bal.radiantMul : 1);
+      const cap = A.cap ? A.cap * (rad ? 1.25 : 1) : Infinity;
       return [Math.min(top * .6, cap), Math.min(top, cap)];
     }
     return F.affRange(k, it.ilvl, it);
@@ -132,13 +146,15 @@
      它的掷点是 RAID_LIFE_MUL[部位] × lifePower × P(ilvl) × spread(.85 ~ 1.15) × radiantMul，
      所以区间要单独算，否则「词缀全满」会把这条漏掉。 */
   NS.raidLifeRange = function (it) {
-    if (!it || !it.raid) return null;
+    if (!it || !(it.raid || it.myth)) return null;
     const mul = typeof RAID_LIFE_MUL === 'object' && RAID_LIFE_MUL ? (RAID_LIFE_MUL[it.t] || 0) : 0;
     if (!mul) return null;
-    const lp = typeof raidItemLifePower === 'function' ? raidItemLifePower(it.raidDiff, it.cls || (G.S && G.S.cls)) : 1;
+    /* 神话装备的 raidDiff 被删了，但底子是按史诗（m）档掷的，生命档也要照 m 算。 */
+    const diff = it.raidDiff || (it.myth ? 'm' : undefined);
+    const lp = typeof raidItemLifePower === 'function' ? raidItemLifePower(diff, it.cls || (G.S && G.S.cls)) : 1;
     const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { radiantMul: 1.3 };
     const pw = typeof P === 'function' ? P : function (l) { return Math.pow(1.11, l); };   // core.js:15
-    const base = mul * (Number(lp) || 1) * pw(Number(it.ilvl) || 1) * (it.radiant ? bal.radiantMul : 1);
+    const base = mul * (Number(lp) || 1) * pw(Number(it.ilvl) || 1) * (NS.radFlag(it) ? bal.radiantMul : 1);
     return [Math.max(1, Math.round(base * .85)), Math.max(1, Math.round(base * 1.15))];
   };
   /* 统一入口：固定生命词条走 raidLifeRange，其余走 affRangeOf。 */
@@ -154,7 +170,7 @@
   /* 基础数值（武器伤害 / 护甲 / 副手加成 / 格挡）的合法区间，
      对应 items.js rollItem 里 rnd(.85, 1.15) 那一层的上下界。 */
   NS.baseRange = function (it, field) {
-    if (!it || it.raid) return null;                       // 王庭基础值由品阶倍率决定，不开放手改
+    if (!it || it.raid || it.myth) return null;            // 王庭 / 神话基础值由品阶倍率决定，不开放手改
     const ilvl = Number(it.ilvl) || 1, rm = NS.rarMul(it), Pv = Math.pow(1.11, ilvl);
     if (field === 'min' || field === 'max') {
       const f = field === 'min' ? .75 : 1.25, a = 4 * Pv * rm * f;
@@ -177,7 +193,7 @@
      王庭装备按 raid_items.js 的 RAID_ITEM_BAL.affixes 走。 */
   NS.affCap = function (it) {
     if (!it) return 0;
-    if (it.raid) {
+    if (it.raid || it.myth) {
       const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { affixes: 5 };
       /* raidRollItem 里随机词缀条数是 affixes - (有固定生命词条 ? 1 : 0)，
          所以带生命的部位（护甲类、首饰）只能有 4 条随机词缀。 */

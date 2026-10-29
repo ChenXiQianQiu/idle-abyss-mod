@@ -3,10 +3,12 @@
    mod_resources.js — 资源页
    ------------------------------------------------------------
    可改：金币 / 魂晶 / 余烬之魂 / 秘境钥匙 / 钥匙碎片 / 扭蛋券 / 强化祝福 /
-        王庭锭 / 王庭碎片（三档难度）/ 最后的余烬 / 宝石（6 种 × 5 品级）。
+        王庭锭 / 王庭碎片（三档难度）/ 最后的余烬 / 深渊结晶 / 宝石（6 种 × 5 品级）。
+   只读：秘境历史最高层、本周秘境碎片（A.raid.deep，换周清零、每档最多 6 个）。
    字段出处（存档结构）：state.js 的 newState()（gold / souls / rift.keys / rift.frag /
    gacha.tickets / gacha.bless）与 newAccount()（shards / gems / raid.ingots / raid.frag）；
-   最后的余烬在账号档的 A.ultra.embers（ultra.js:29 ultraNormAccount 里规范化）。
+   最后的余烬在账号档的 A.ultra.embers（ultra.js:29 ultraNormAccount 里规范化）；
+   深渊结晶与本周秘境碎片在 A.raid.crystal / A.raid.deep（state.js:59 newRaidAccount）。
    魂晶与宝石是账号级数据，S.shards / S.gems 是 state.js bindAccount() 挂上去的
    存取器，写 S.shards 等价于写 A.shards，所以这里统一走 S，让游戏自己处理落盘。
    ============================================================ */
@@ -82,6 +84,16 @@
       },
       max: 1e6,
     },
+    {
+      /* 深渊结晶 = A.raid.crystal（state.js:59 newRaidAccount）。
+         rift.js:55 每通关 46 层以上给「层数 − 45」个，用于铁匠「灌注」页签把王庭装备
+         灌注成辉耀（RIFT_DEEP.infuse：普通 1000 / 英雄 2000 / 神话 3000）；
+         神话装备重复掉落也折成这个。账号共用、没有上限。 */
+      key: 'crystal', name: '深渊结晶', sub: '秘境 46 层以上通关 · 铁匠灌注 · 账号共用',
+      get: () => ((G.A || {}).raid || {}).crystal,
+      set: v => { const A = G.A; if (!A) return; if (!A.raid || typeof A.raid !== 'object') A.raid = (typeof newRaidAccount === 'function' ? newRaidAccount() : {}); A.raid.crystal = Math.max(0, Math.floor(v)); },
+      max: 1e9,
+    },
   ];
 
   function rowHTML(r) {
@@ -111,13 +123,37 @@
       <div class="iap-gemhead"><span></span>${head}</div>${rows}</div>`;
   }
 
+  /* 秘境高层（rift.js:42 RIFT_DEEP）。本周秘境碎片是「每周每档最多 6 个」的计数，
+     满了奖励会自动降到下一档；这里只读不写 —— 改小了等于凭空多刷一遍碎片，
+     而且换周会被 riftDeepWeek() 按周号清零，改存档也没意义。 */
+  function deepHTML() {
+    const D = G.RIFT_DEEP, A = G.A;
+    if (!D || !A || !A.raid) return '';
+    let best = 0;
+    try { best = typeof riftBest === 'function' ? (Number(riftBest()) || 0) : 0; } catch (e) { best = 0; }
+    let wk = A.raid.deep;
+    if (!wk || typeof wk !== 'object') return '';
+    try { if (typeof riftDeepWeek === 'function') wk = riftDeepWeek(); } catch (e) { }
+    const ds = G.RAID_DIFFS || [];
+    const cells = ds.map(function (d) {
+      const n = Number(wk[d.id]) || 0;
+      return `<i class="iap-cd${n >= D.fragWeek ? ' on' : ''}">${NS.esc(d.n)} ${n}/${D.fragWeek}</i>`;
+    }).join('');
+    return `<div class="iap-sec"><div class="iap-sechd"><b>秘境高层</b><small>只读 · 46 层起每层给「层数 − 45」个深渊结晶</small></div>
+      <div class="iap-row"><div class="iap-lab"><b>历史最高层</b><small>${best >= D.from ? '已进入高层收益' : '还不到 ' + D.from + ' 层'}</small></div>
+        <div class="iap-cur"><i>${best}</i></div></div>
+      <div class="iap-row"><div class="iap-lab"><b>本周秘境碎片</b><small>每周每档最多 ${D.fragWeek} 个，满了自动降到下一档</small></div>
+        <div class="iap-cds">${cells || '<span class="dim">没有读到难度表</span>'}</div></div>
+    </div>`;
+  }
+
   function render() {
     const S = G.S, A = G.A;
     if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     return `<div class="iap-note">改完立刻写入存档。数值可以填 <b>1.5万</b> / <b>2亿</b> / <b>3k</b> 这种简写。</div>`
       + ROWS.map(rowHTML).join('')
-      + gemHTML();
+      + gemHTML() + deepHTML();
   }
 
   function syncRow(root, key) {

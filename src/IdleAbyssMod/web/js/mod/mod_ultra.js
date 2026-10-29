@@ -14,15 +14,17 @@
       其余判定（最终战从本次队伍 4 人里随机挑一位没拿过的、全拿过就多给
       1 枚余烬）完全走游戏原版，不复制任何逻辑。
 
-   2) 升华词缀自选
-      游戏：ultra.js:611 ultraSmithAct('ultraup', it)
+   2) 升华 / 重选词缀自选
+      游戏：ultra.js ultraSmithAct('ultraup', it)
         扣 1 枚余烬 / 500 魂晶 / 金币，然后从 15 条终焉词条（ULTRA_AFFIX）
         里随机取 3 条写进 it.ultraPend，玩家再点其中一条（ultratake:j）。
+      2.4.0 新增重选：ultraSmithAct('ultrareroll', it) 花同样代价，给 3 条新词条
+        （不含当前那条）写进 it.ultraRe，点 ultrare:j 换上，或 ultrakeep 保留原样。
       开关打开后包装这个函数：原函数照常跑完（余额校验、扣费、存档都不动），
-      再把 it.ultraPend 换成 ULTRA_AFFIX 的全部 15 条并重新存档。
+      再把 it.ultraPend / it.ultraRe 换成 ULTRA_AFFIX 的全部 15 条并重新存档。
       铁匠「升华」页签里就会把 15 条全列出来，自己挑一条。
       注意 ultraSmithFoot 是顶层 const 箭头函数，window 上覆盖不了，
-      所以只能改它读的 ultraPend，不能直接换渲染函数。
+      所以只能改它读的 ultraPend / ultraRe，不能直接换渲染函数。
 
    包装方式与 mod_raid.js 一致：游戏是经典脚本，顶层 function 声明挂在
    window 上、内部是裸名调用，覆盖 window 上的同名属性即可生效；
@@ -78,12 +80,22 @@
     orig.smith = ultraSmithAct;
     window.ultraSmithAct = function (act, it) {
       const r = orig.smith.apply(this, arguments);
-      /* 只接管「升华」这一步：原函数已经把费用扣掉、把 3 条写进 ultraPend 了 */
-      if (!r || !U.pickAff || act !== 'ultraup' || !it) return r;
-      if (!Array.isArray(it.ultraPend) || !it.ultraPend.length) return r;
+      /* 只接管「升华」和 2.4.0 新增的「重选」两步：原函数已经把费用扣掉、
+         把 3 条写进 ultraPend / ultraRe 了，这里换成全部 15 条。 */
+      if (!r || !U.pickAff || !it) return r;
+      if (act !== 'ultraup' && act !== 'ultrareroll') return r;
       const all = Object.keys(affixes());
       if (!all.length) return r;
-      it.ultraPend = all;                                  // 15 条全给，自己挑
+      if (act === 'ultraup') {
+        if (!Array.isArray(it.ultraPend) || !it.ultraPend.length) return r;
+        it.ultraPend = all;                                // 15 条全给，自己挑
+      } else {
+        if (!Array.isArray(it.ultraRe) || !it.ultraRe.length) return r;
+        /* 原版 ultraRollAffixes(n, skip) 会跳过当前那条词条，这里同样排除，
+           免得「重选」列表里出现已经戴着的那一条。 */
+        const cur = it.ultraAff && it.ultraAff.k;
+        it.ultraRe = all.filter(function (k) { return k !== cur; });
+      }
       try { save(); } catch (e) { console.warn('[IAP] 保存升华待选失败', e); }
       return r;
     };
@@ -149,10 +161,9 @@
           只影响超高难本，永夜王庭的每周掉落资格在「团本」页。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>升华</b><small>铁匠 → 升华页签</small></div>
-        ${toggleChip('pickAff', U.pickAff, '终焉词条自选', '升华时把 15 条终焉词条全列出来，自己挑一条')}
-        <div class="iap-hint">原版是随机 3 选 1。开启后点「升华」，扣费和「每件只能升华一次」的规则都不变，
-          只是把待选列表换成全部 ${Object.keys(affixes()).length} 条；已经处在「待选择」状态的装备不受影响，
-          想重选要等这件还没升华时再点一次升华。</div>
+        ${toggleChip('pickAff', U.pickAff, '终焉词条自选', '升华 / 重选时把 15 条终焉词条全列出来，自己挑一条')}
+        <div class="iap-hint">原版是随机 3 选 1。开启后点「升华」或 2.4.0 新增的「重选词条」，扣费和「每件只能升华一次」的规则都不变，
+          只是把待选列表换成全部 ${Object.keys(affixes()).length} 条（重选时排除当前已戴的那条）；已经处在「待选择」状态的装备不受影响。</div>
       </div>
       <div class="iap-sec"><div class="iap-sechd"><b>状态</b><small>账号共用</small></div>
         <div class="iap-row"><div class="iap-lab"><b>最后的余烬</b><small>终焉升华每次消耗 1 枚</small></div>

@@ -10,7 +10,7 @@
      · 增删改随机词缀，数值夹在 affRange()（王庭走 raidRollAff）的区间内
      · 镶嵌 / 替换宝石（数量上限取 SOCKET_MAX）
      · 用游戏自己的生成器造一件新装备再细调：主线 rollItem / 王庭 raidRollItem /
-       奇物 rollOddity，三种来源的产出规格与正常掉落完全一致
+       奇物 rollOddity / 神话 mythRollItem，四种来源的产出规格与正常掉落完全一致
    所有区间都直接调用游戏的公式，改出来的装备和正常掉落同规格。
    ============================================================ */
 (function () {
@@ -19,7 +19,7 @@
     sel: null, src: 'all', q: '',
     /* 生成器的表单状态。放在这里而不是只读 DOM：重绘（选装备 / 换品质 / 生成完）
        会把左侧重建，不记下来的话每次都要重新选部位和难度。 */
-    gen: { src: 'main', t: 'weapon', r: 3, ilvl: 0, rid: '', diff: 'n', radiant: false, odd: '' },
+    gen: { src: 'main', t: 'weapon', r: 3, ilvl: 0, rid: '', diff: 'n', radiant: false, odd: '', myth: '' },
   });
   const SRC_FILTERS = [['all', '全部'], ['eq', '已装备'], ['inv', '背包'], ['stash', '仓库'], ['shared', '共用']];
   /* 容量上限，照 state.js:7 的 INV_MAX / STASH_MAX 与 state.js:8 的 SHARED_TAB_SIZE */
@@ -40,9 +40,10 @@
        · 主线  rollItem(ilvl, r, t, cls)                  items.js:114（品质 / 词缀 / 基础值全在这）
        · 王庭  raidRollItem(id, diff, rng, { radiant })   raid_items.js:303
        · 奇物  rollOddity(k, ilvl)                        oddity.js:17
+       · 神话  mythRollItem(k, cls)                       myth.js:49（底子 = 史诗辉耀王庭，r = 7）
      王庭的 id 是 `${职业}_${部位}`（data_raid.js:181），另有通用首饰 j_* 与稀世 x_*；
      它的物品等级由难度决定（新规则三档都是 100），所以不开放 ilvl 输入。 */
-  const GEN_SRC = [['main', '主线'], ['raid', '王庭'], ['odd', '奇物']];
+  const GEN_SRC = [['main', '主线'], ['raid', '王庭'], ['odd', '奇物'], ['myth', '神话']];
   /* 部位名直接用游戏的 TYPE_NAME（data_items.js:8），别自己再抄一份 */
   const partName = function (t) { return (G.TYPE_NAME && G.TYPE_NAME[t]) || t; };
 
@@ -111,6 +112,34 @@
     }).join('') + '</select>';
   }
 
+  /* 神话装备下拉框：51 只神兽按五个界分组（data_myth.js MYTH_REALMS）。
+     神话是账号唯一的，已拥有过的在名字后面标出来 —— 再生成一件游戏不会拦，
+     但那只神兽的「首次获得」判定已经过了，多出来的就是纯粹的复制品。 */
+  function mythGroups() {
+    const T = G.MYTH, keys = G.MYTH_KEYS, realms = G.MYTH_REALMS;
+    if (!T || !keys.length) return [];
+    return realms.map(function (r, i) {
+      const items = keys.filter(function (k) { return T[k] && T[k].realm === i; });
+      if (!items.length) return null;
+      return { label: r.n, items: items.map(function (k) {
+        return { k: k, n: T[k].n, item: T[k].item.n, part: T[k].item.t };
+      }) };
+    }).filter(Boolean);
+  }
+
+  function mythSelectHTML(g) {
+    const groups = mythGroups();
+    if (!groups.length) return `<span class="iap-hint bad">神兽表不可用（游戏版本低于 2.4.0？）</span>`;
+    const owned = (((G.A || {}).myth || {}).own) || {};
+    if (!groups.some(gr => gr.items.some(x => x.k === g.myth))) g.myth = groups[0].items[0].k;
+    const html = groups.map(function (gr) {
+      return `<optgroup label="${NS.esc(gr.label)}">` + gr.items.map(function (x) {
+        return `<option value="${x.k}"${x.k === g.myth ? ' selected' : ''}>${NS.esc(x.n)} · ${NS.esc(x.item)}（${partName(x.part)}）${owned[x.k] ? ' · 已拥有' : ''}</option>`;
+      }).join('') + '</optgroup>';
+    }).join('');
+    return `<select class="iap-in" data-gen="myth" aria-label="神兽">${html}</select>`;
+  }
+
   function genFormHTML() {
     const g = genState();
     const chips = GEN_SRC.map(function (p) {
@@ -125,6 +154,16 @@
           <button class="iap-btn pri" data-do="gen">生成</button></div>`;
       hint = `王庭装备三档都是 ilvl ${F.ruleIlvl(9999)}（新规则），难度只改品阶倍率${d.n ? '，当前 <b>' + d.n + '</b>' : ''}。
         本职业与通用首饰进背包，别职业的进共用仓库。`;
+    } else if (g.src === 'myth') {
+      const MB = G.MYTH_BAL || {};
+      body = `<div class="iap-genrow">${mythSelectHTML(g)}</div>
+        <div class="iap-genrow">
+          <button class="iap-btn pri" data-do="gen">生成</button>
+        </div>`;
+      hint = `神话是第 7 品质（r = 7），底子按<b>史诗辉耀王庭</b>的公式生成：账号唯一、不能分解，
+        每件带一条神格（转化 / 改写 / 共鸣）。重复拿同一只会转成神契，这里不做保底，
+        点一次就出。当前职业 <b>${NS.esc((G.CLASSES && G.CLASSES[G.S.cls] && G.CLASSES[G.S.cls].n) || G.S.cls)}</b>；
+        想换职业用共用仓库取回，游戏会自动按新职业重掷底子。${MB.from ? '' : '<br><b>没读到 MYTH_BAL，生成器可能不完整。</b>'}`;
     } else if (g.src === 'odd') {
       body = `<div class="iap-genrow">${oddSelectHTML(g)}</div>
         <div class="iap-genrow">
@@ -219,8 +258,9 @@
     const fixed = !!(f.fixed && !f.raid);
     const other = (it.aff || []).some((g, j) => j !== i && g.fixed && !g.raid);
     const opts = [];
-    /* 只有带 RAID_LIFE_MUL 的部位（护甲类、首饰）才有王庭生命词条；武器 / 副手没有 */
-    if (it.raid && (!other || fixed) && (fixed || NS.raidLifeRange(it))) {
+    /* 只有带 RAID_LIFE_MUL 的部位（护甲类、首饰）才有王庭生命词条；武器 / 副手没有。
+       神话装备同样带这条（底子就是王庭装），所以一并算进来。 */
+    if ((it.raid || it.myth) && (!other || fixed) && (fixed || NS.raidLifeRange(it))) {
       opts.push({ v: '__life_fixed', n: '生命·王庭' });
     }
     affOptions(it, i).forEach(function (k) {
@@ -308,6 +348,14 @@
     if (tag) {
       parts.push('王庭 · ' + tag.kindName + (tag.setName ? '（' + tag.setName + '）' : '') + (tag.fxName ? '（' + tag.fxName + '）' : ''));
       if (tag.radiant) parts.push('辉耀');
+    } else if (it.myth) {
+      /* 神话：界 + 神兽 + 神格名，底子按史诗辉耀王庭算（所以词缀区间也走辉耀） */
+      const M = (G.MYTH || {})[it.myth], realms = G.MYTH_REALMS;
+      parts.push(G.RAR[it.r] ? G.RAR[it.r].n : '神话');
+      if (M) {
+        if (realms[M.realm]) parts.push(realms[M.realm].n);
+        parts.push(M.n + ' · ' + M.item.n + ' · 神格「' + M.item.g + '」');
+      }
     } else {
       parts.push(G.RAR[it.r] ? G.RAR[it.r].n : '?');
       if (it.leg) parts.push('传奇特效 ' + it.leg);
@@ -319,7 +367,7 @@
 
   function editorHTML(it) {
     if (!it) return `<div class="iap-empty">左边选一件装备，或者先生成一件。</div>`;
-    const raid = !!it.raid;
+    const raid = !!it.raid, myth = !!it.myth, court = raid || myth;
     const cap = F.ruleIlvl(9999);
     const head = `<div class="iap-edhd"><img src="${icon(it)}" alt="">
         <div class="iap-edname"><b style="color:${NS.rarColor(it)}">${NS.esc(NS.itemName(it))}</b>
@@ -332,17 +380,21 @@
         <div class="iap-hint">${NS.esc(od.name || it.odd)}：${NS.esc(od.desc || '')}${od.curse ? '　代价：' + NS.esc(od.curse) : ''}</div>
         ${numField('强化等级 +', 'data-eq="plus"', it.plus || 0, `0 ~ ${G.MAX_PLUS}`)}</div>`;
     }
-    const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${raid ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
+    const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${court ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
     /* 王庭：r 固定 6（品质按钮禁用），但「辉耀」就是它的上古，可以自由开关。
-       游戏里王庭没有太古（raid_items.js:373 硬写 anc = false），所以不给太古按钮。 */
+       游戏里王庭没有太古（raid_items.js:373 硬写 anc = false），所以不给太古按钮。
+       神话：r 固定 7，底子已经按「史诗辉耀王庭」掷好，改品质 / 翻辉耀都会和 mythSeed 对不上，
+       所以这里只说明、不给开关。 */
     const flags = raid
       ? `<button class="iap-chip${it.radiant ? ' on' : ''}" data-do="radiant" title="王庭版的上古：基础值 / 词缀上限 / 固定生命 / ◆ 特效一起 ×1.3">辉耀（数值 ×1.3）</button>
          <span class="iap-hint">王庭品阶 = 主线的传奇 / 套装档，「辉耀」= 主线的上古。王庭没有太古。</span>`
-      : `
+      : myth
+        ? `<span class="iap-hint">神话：底子按<b>史诗辉耀王庭</b>生成，品质与基础值不开放手改；词缀可以改，区间已按辉耀（×1.3）算。</span>`
+        : `
       <button class="iap-chip${it.anc ? ' on' : ''}" data-do="anc">上古（数值 ×1.3）</button>
       <button class="iap-chip${it.primal ? ' on' : ''}" data-do="primal">太古（词缀满值）</button>`;
-    const secNote = raid
-      ? '王庭品质与基础值由品阶倍率决定，不开放手改'
+    const secNote = court
+      ? (myth ? '神话品质与基础值由生成器决定，不开放手改' : '王庭品质与基础值由品阶倍率决定，不开放手改')
       : '改品质会改变词缀区间与词缀条数上限';
     return head + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>${secNote}</small></div>
         <div class="iap-chips">${rBtns}</div>
@@ -537,6 +589,7 @@
         else if (k === 'rid') g.rid = el.value;
         else if (k === 'diff') g.diff = el.value;
         else if (k === 'odd') g.odd = el.value;
+        else if (k === 'myth') g.myth = el.value;
         return;
       }
       const it = EQ.sel;
@@ -641,6 +694,7 @@
     const g = readGen(root);
     if (g.src === 'raid') return genRaid(g);
     if (g.src === 'odd') return genOdd(g);
+    if (g.src === 'myth') return genMyth(g);
     return genMain(g);
   }
 
@@ -676,6 +730,36 @@
     /* 账号唯一性登记：不写的话本局游戏还以为没拥有，会再掉一件同样的 */
     try { if (typeof oddClaim === 'function') oddClaim(it); } catch (e) { }
     done(it, putItem(it));
+  }
+
+  /* 神话：mythRollItem(k, cls) = mythBase(k, cls, 随机种子)，底子就是「史诗辉耀王庭」的
+     raidRollItem，再剥掉王庭身份换成 r = 7（myth.js:39）。神格、神契都在 myth.js 里算，
+     这里只负责造出来并登记账号唯一性。
+     A.myth.own 一定要写：不写的话游戏还以为没拥有过，下一只神兽掉落会再给一件同款。 */
+  function genMyth(g) {
+    if (typeof mythRollItem !== 'function') { NS.toast('找不到 mythRollItem（游戏版本低于 2.4.0？）', true); return; }
+    const S = G.S, A = G.A;
+    if (!A) { NS.toast('账号档还没就绪', true); return; }
+    const k = g.myth;
+    if (!k) { NS.toast('没有选中神兽', true); return; }
+    let it = null;
+    try { it = mythRollItem(k, S.cls); } catch (e) { console.warn('[IAP] mythRollItem 失败', e); }
+    if (!it) { NS.toast('生成失败', true); return; }
+    /* mythNormAccount() 会顺带把 A.myth 补成完整结构（own / pact / pity / titles / kills） */
+    let acc = null;
+    try { acc = typeof mythNormAccount === 'function' ? mythNormAccount() : A.myth; } catch (e) { acc = null; }
+    if (!acc || typeof acc !== 'object') acc = A.myth = { own: {}, pact: {}, pity: {}, titles: {}, kills: {} };
+    if (!acc.own || typeof acc.own !== 'object') acc.own = {};
+    const first = !acc.own[k];
+    acc.own[k] = true;
+    if (first) {
+      try { if (typeof ach === 'function') ach('ACH_MYTH'); } catch (e) { }
+      try {
+        const K = G.MYTH_KEYS;
+        if (K.length && K.every(x => acc.own[x]) && typeof ach === 'function') ach('ACH_MYTH50');
+      } catch (e) { }
+    }
+    done(it, putItem(it) + (first ? '' : '（这只已经拥有过，重复件）'));
   }
 
   NS.registerTab({ key: 'eq', name: '装备', render: render, bind: bind });
