@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.7.0';
+  NS.version = '0.8.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -63,6 +63,19 @@
     get MYTH_KEYS() { return Array.isArray(MYTH_KEYS) ? MYTH_KEYS : []; },
     get MYTH_REALMS() { return Array.isArray(MYTH_REALMS) ? MYTH_REALMS : []; },
     get RIFT_DEEP() { return typeof RIFT_DEEP === 'object' ? RIFT_DEEP : null; },
+    /* 深渊誓约（2.8.3，data_abyss.js / abyss.js / abyss_etch.js）：
+       ABYSS_BAL 平衡表（解锁 / 深度 / 奖励公式 / 本周阶梯）、ABYSS_TAGS 誓约表、
+       ABYSS_ETCH 蚀刻（阶数 / 成功率 / 费用 / 失败表）、ABYSS_CAFF 腐化词缀、ABYSS_INSC 深渊铭文。
+       2.8.3 之前这些全是 undefined，取到 null / []，页面据此提示。 */
+    get ABYSS_BAL() { return typeof ABYSS_BAL === 'object' ? ABYSS_BAL : null; },
+    get ABYSS_TAGS() { return Array.isArray(ABYSS_TAGS) ? ABYSS_TAGS : []; },
+    get ABYSS_ETCH() { return typeof ABYSS_ETCH === 'object' ? ABYSS_ETCH : null; },
+    get ABYSS_CAFF() { return typeof ABYSS_CAFF === 'object' ? ABYSS_CAFF : null; },
+    get ABYSS_INSC() { return typeof ABYSS_INSC === 'object' ? ABYSS_INSC : null; },
+    get ABYSS_LORD() { return typeof ABYSS_LORD === 'object' ? ABYSS_LORD : null; },
+    /* DLC（2.8.3，dlc.js）：DLC 表与拥有判定。没装 DLC / 没买时 dlcReady 为 false，
+       灵器沉睡、孟萤上锁；Mod 的装备页据此决定要不要显示灵器专属内容。 */
+    get DLC() { return typeof DLC === 'object' ? DLC : null; },
   });
 
   /* ---------- 游戏函数的安全包装 ---------- */
@@ -164,13 +177,48 @@
     return NS.affRangeOf(f.k, it);
   };
   NS.rarMul = function (it) {
-    const base = [1, 1.1, 1.2, 1.35, 1.35][it.r] || 1;
+    /* r = 8 是灵器（DLC《炼妖壶》，RAR[8]）：白装底子封进器灵，品阶倍率和传奇 / 套装同一档。
+       数组里补上 1.35，否则 r=8 会落到 `|| 1`，算出来的区间比实际掷点小一截。 */
+    const base = [1, 1.1, 1.2, 1.35, 1.35, 1.35, 1.35, 1.35, 1.35][it.r] || 1;
     return base * (it.anc ? 1.3 : 1) * (it.primal ? 1.1 : 1);
+  };
+  /* ---------- 深渊誓约 / 灵器（游戏 2.8.3） ----------
+     it.abyss = { lv 0–5, n 已蚀刻次数, cor 0|1, insc 铭文, opt, re, caff, pre }（abyss_etch.js:24）
+       · 深渊阶乘在强化后面（items.js 的 plusM = (1+.08×plus) × abyssItemMul），
+         所以词缀区间不变，只是「强化后」的显示值要跟着涨 —— F.plusM 是游戏自己的函数，自动带上。
+       · cor = 1（腐化）之后游戏禁止强化 / 附魔 / 打孔 / 升华 / 灌注 / 蚀刻（ui.js:961、971、1186），
+         但词缀本身还在，Mod 改词缀不会崩，只是会绕过这条限制 —— 页面上要明确标出来。
+     it.bind = 1：蚀刻过或深渊里掉的装备绑定角色，不能放进共用仓库 / 神话仓库。
+     it.ling（r = 8，灵器）：词条全部由器灵决定，yaoItemFix 在读档时重建（state.js:463），
+       所以词缀只读；基础值也不开放手改。 */
+  NS.isLing = function (it) { return !!(it && it.ling); };
+  NS.isBound = function (it) { return !!(it && it.bind); };
+  NS.abyssOf = function (it) {
+    return (it && it.abyss && typeof it.abyss === 'object' && !Array.isArray(it.abyss)) ? it.abyss : null;
+  };
+  NS.abyssCor = function (it) { const a = NS.abyssOf(it); return !!(a && a.cor); };
+  NS.abyssLv = function (it) { const a = NS.abyssOf(it); return a && Number.isFinite(a.lv) ? a.lv : 0; };
+  /* 深渊阶的倍率：本件底子和词条 ×(1 + step × 阶)，和 abyssItemMul 同一条公式 */
+  NS.abyssMul = function (it) {
+    const E = G.ABYSS_ETCH, a = NS.abyssOf(it);
+    if (!E || !a) return 1;
+    return 1 + (Number(E.step) || .06) * (Number(a.lv) || 0);
+  };
+  /* 一件装备能改到什么程度：
+       'full'  普通装备（主线 / 王庭 / 神话），品质、等级、词缀都能改
+       'ling'  灵器：只能改强化和宝石，词缀与基础值由器灵重建
+       'cor'   腐化：游戏已经定格（不能强化 / 附魔 / 打孔 / 升华 / 灌注 / 蚀刻），
+               这里仍然允许改，但要在页面上说明「这是绕过限制」，免得玩家以为是 bug */
+  NS.editMode = function (it) {
+    if (!it) return 'none';
+    if (NS.isLing(it)) return 'ling';
+    if (NS.abyssCor(it)) return 'cor';
+    return 'full';
   };
   /* 基础数值（武器伤害 / 护甲 / 副手加成 / 格挡）的合法区间，
      对应 items.js rollItem 里 rnd(.85, 1.15) 那一层的上下界。 */
   NS.baseRange = function (it, field) {
-    if (!it || it.raid || it.myth) return null;            // 王庭 / 神话基础值由品阶倍率决定，不开放手改
+    if (!it || it.raid || it.myth || NS.isLing(it)) return null;   // 王庭 / 神话 / 灵器基础值由品阶与器灵决定，不开放手改
     const ilvl = Number(it.ilvl) || 1, rm = NS.rarMul(it), Pv = Math.pow(1.11, ilvl);
     if (field === 'min' || field === 'max') {
       const f = field === 'min' ? .75 : 1.25, a = 4 * Pv * rm * f;
@@ -193,6 +241,8 @@
      王庭装备按 raid_items.js 的 RAID_ITEM_BAL.affixes 走。 */
   NS.affCap = function (it) {
     if (!it) return 0;
+    /* 灵器（r = 8）：词条全部由器灵决定，yaoItemFix 读档时整条重建，改多少都存不下来 */
+    if (NS.isLing(it)) return 0;
     if (it.raid || it.myth) {
       const bal = typeof RAID_ITEM_BAL === 'object' && RAID_ITEM_BAL ? RAID_ITEM_BAL : { affixes: 5 };
       /* raidRollItem 里随机词缀条数是 affixes - (有固定生命词条 ? 1 : 0)，

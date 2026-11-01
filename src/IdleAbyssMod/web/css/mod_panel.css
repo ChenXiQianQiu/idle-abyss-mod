@@ -174,6 +174,19 @@ select.iap-in { text-align: left; }
 .iap-cbar > i { display: block; height: 100%; background: linear-gradient(#a8883a 0 1px, #6e5a24 1px); }
 .iap-note code { color: var(--gold, #c9a13a); font: inherit; }
 
+/* ---------- 深渊页（2.8.3 深渊誓约） ---------- */
+/* 誓约速查：一条誓约一块，标题行 + 每个等级一行（誓重、效果、罗马数字） */
+.iap-tag { border-bottom: 1px solid #2a232a; padding: 4px 8px 5px; }
+.iap-tag:last-child { border-bottom: 0; }
+.iap-tagh { display: flex; align-items: baseline; gap: 6px; }
+.iap-tagh b { color: var(--ink, #e8dcc0); font-size: 12px; }
+.iap-tagh small { color: var(--mute, #6a5e52); font-size: 10px; margin-left: auto; }
+.iap-taglv { display: flex; align-items: baseline; gap: 6px; padding: 1px 0 1px 2px; }
+.iap-taglv > span:nth-child(2) { flex: 1; color: #b8a888; font-size: 11px; line-height: 14px; }
+.iap-taglv .dim { color: var(--mute, #6a5e52); font-size: 10px; }
+/* 誓重数字：和深渊之泪同色系，一眼看出「这条值多少层」 */
+.iap-tagw { flex: 0 0 34px; text-align: right; color: #c070ff; font-size: 11px; font-variant-numeric: tabular-nums; }
+
 /* ---------- 底部 ---------- */
 .iap-ft { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; }
 .iap-tip { color: var(--mute, #6a5e52); font-size: 10px; }

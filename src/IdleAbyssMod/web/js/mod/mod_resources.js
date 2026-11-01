@@ -94,7 +94,40 @@
       set: v => { const A = G.A; if (!A) return; if (!A.raid || typeof A.raid !== 'object') A.raid = (typeof newRaidAccount === 'function' ? newRaidAccount() : {}); A.raid.crystal = Math.max(0, Math.floor(v)); },
       max: 1e9,
     },
+    /* ---------- 深渊誓约（2.8.3）：三种货币都在角色档 S.abyss ----------
+       abyss.js:24 abyssNormState 只认 >= 0 的整数（frac 是 0–1 的小数累积），
+       结构不对时用游戏自己的 abyssNewState() 补一份完整的，别手写。 */
+    {
+      key: 'heart', name: '蚀心', sub: '深渊誓约通关 · 铁匠蚀刻 · 角色绑定',
+      get: () => ((G.S || {}).abyss || {}).heart,
+      set: v => { const s = abyssState(); if (s) s.heart = Math.max(0, Math.floor(v)); },
+      max: 1e9,
+    },
+    {
+      key: 'ward', name: '守心符', sub: '誓重 ≥ 40 的深渊通关 · 蚀刻护符 · 角色绑定',
+      get: () => ((G.S || {}).abyss || {}).ward,
+      set: v => { const s = abyssState(); if (s) s.ward = Math.max(0, Math.floor(v)); },
+      max: 1e9,
+    },
+    {
+      key: 'tear', name: '深渊之泪', sub: '誓重 ≥ 80 且评级 ≥ 400 · 蚀刻 · 角色绑定',
+      get: () => ((G.S || {}).abyss || {}).tear,
+      set: v => { const s = abyssState(); if (s) s.tear = Math.max(0, Math.floor(v)); },
+      max: 1e9,
+    },
   ];
+
+  /* 取角色档里的深渊誓约状态，缺了就按游戏的结构补一份（2.8.3 之前没有这个字段）。
+     没装 2.8.3 时 abyssNewState 不存在，退回一个最小的空结构，写进去也不会炸。 */
+  function abyssState() {
+    const S = G.S;
+    if (!S) return null;
+    if (!S.abyss || typeof S.abyss !== 'object' || Array.isArray(S.abyss)) {
+      S.abyss = (typeof abyssNewState === 'function' ? abyssNewState() : null)
+        || { presets: [], pick: 0, auto: 0, heart: 0, ward: 0, tear: 0, frac: { heart: 0, ward: 0, tear: 0 }, best: 0, bestDepth: 0, runs: 0, clears: 0, week: null, log: [] };
+    }
+    return S.abyss;
+  }
 
   function rowHTML(r) {
     const cur = Number(r.get()) || 0;

@@ -150,10 +150,32 @@
 
   /* 重绘保留滚动位置；切标签 / 换角色时才回到顶部 */
   P.refresh = function () { if (P.open) renderBody(true); };
+
+  /* 首次打开面板时把所有页签的 render 跑一遍（结果不插进 DOM）。
+     正式包没有 DevTools，某一页因为游戏改版抛错时只有切到那一页才看得见；
+     这里提前跑一次，把哪一页失败写进主进程日志，玩家报「某页是空的」时能直接定位。
+     只读：render 都是纯函数，最坏情况是补一个缺省字段（如 S.abyss）。 */
+  let tested = false;
+  function selftest() {
+    if (tested) return;
+    tested = true;
+    const bad = [];
+    NS.tabs.forEach(function (t) {
+      try {
+        const h = t.render();
+        if (typeof h !== 'string' || !h) bad.push(t.key + ':空');
+      } catch (e) { bad.push(t.key + ':' + ((e && e.message) || e)); }
+    });
+    try {
+      reportErr('[IAP] 页签自检 ' + (bad.length ? '失败 → ' + bad.join(' | ') : '全部通过（' + NS.tabs.length + ' 页）'));
+    } catch (e) { }
+  }
+
   P.show = function () {
     if (!root) build();
     root.classList.add('on');
     P.open = true;
+    selftest();
     renderBody();
   };
   P.hide = function () {

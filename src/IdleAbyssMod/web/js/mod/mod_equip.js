@@ -65,6 +65,9 @@
     Object.keys(C).forEach(function (c) { if (c !== cls) order.push(c); });
     const groups = [];
     order.forEach(function (c) {
+      /* 2.8.3：孟萤（envoy）是 DLC 角色，没买 / 没下载时她的王庭装备不进掉落池
+         （data_raid.js:176 raidClassOpen 用 heroLocked 过滤），这里也不显示。 */
+      if (typeof heroLocked === 'function' && heroLocked(c)) return;
       const arr = list.filter(function (i) { return i.cls === c; });
       if (!arr.length) return;
       groups.push({ label: (c === cls ? '本职业 · ' : '') + ((C[c] && C[c].n) || c), items: arr });
@@ -212,10 +215,17 @@
     EQ._list = items;
     return items.length ? items.map(function (x, i) {
       const it = x.it, sel = EQ.sel === it;
+      /* 2.8.3 的两类新状态：灵器（r=8，DLC）和深渊誓约的蚀刻 / 绑定。
+         蚀刻阶与腐化只标在列表上，具体数值在右侧编辑器和装备卡里看。 */
+      const lv = NS.abyssLv(it);
+      const marks = [
+        it.raid ? '王庭' : '', it.odd ? '奇物' : '', it.myth ? '神话' : '', NS.isLing(it) ? '灵器' : '',
+        lv ? '蚀刻 ' + lv + ' 阶' : '', NS.abyssCor(it) ? '腐化' : '', NS.isBound(it) ? '绑定' : '',
+      ].filter(Boolean);
       return `<button class="iap-item${sel ? ' on' : ''}" data-idx="${i}" style="--c:${NS.rarColor(it)}">
         <img src="${icon(it)}" alt="">
         <span class="iap-itemtx"><b>${NS.esc(NS.itemName(it))}</b>
-        <small>${x.tag} · ${G.TYPE_NAME[it.t] || it.t} · ilvl ${it.ilvl}${it.raid ? ' · 王庭' : ''}${it.odd ? ' · 奇物' : ''}</small></span>
+        <small>${x.tag} · ${G.TYPE_NAME[it.t] || it.t} · ilvl ${it.ilvl}${marks.length ? ' · ' + marks.join(' · ') : ''}</small></span>
       </button>`;
     }).join('') : `<div class="iap-empty sm">没有符合条件的装备</div>`;
   }
@@ -328,7 +338,10 @@
   }
 
   function sockRows(it) {
-    const max = G.SOCKET_MAX[it.t] || 0;
+    /* 孔数上限用游戏的 mythSockMax：它已经处理了灵器（不能打孔，精卫之魂例外 1 孔）
+       和神话精卫 +1；腐化词缀「多孔」能超过部位上限，所以再和现有孔数取大。 */
+    const base = typeof mythSockMax === 'function' ? mythSockMax(it) : (G.SOCKET_MAX[it.t] || 0);
+    const max = Math.max(base, (it.sock || []).length);
     if (!max) return '';
     const sock = it.sock || (it.sock = []);
     const cat = sockCat(it.t);
@@ -367,6 +380,12 @@
       if (it.leg) parts.push('传奇特效 ' + it.leg);
       if (it.set) parts.push('套装 ' + it.set);
     }
+    /* 深渊誓约（2.8.3）：蚀刻阶 / 腐化 / 铭文 / 角色绑定，都标在副标题上 */
+    const a = NS.abyssOf(it);
+    if (a && a.lv) parts.push('深渊阶 ' + a.lv + '（×' + Math.round(NS.abyssMul(it) * 100) / 100 + '）');
+    if (a && a.cor) parts.push('腐化');
+    if (a && a.insc) parts.push('铭文 ' + a.insc);
+    if (NS.isBound(it)) parts.push('角色绑定');
     parts.push('ilvl ' + it.ilvl);
     return parts.join(' · ');
   }
@@ -385,6 +404,27 @@
       return head + `<div class="iap-sec"><div class="iap-sechd"><b>奇物</b><small>词缀与数值由奇物表决定，这里只开放强化等级</small></div>
         <div class="iap-hint">${NS.esc(od.name || it.odd)}：${NS.esc(od.desc || '')}${od.curse ? '　代价：' + NS.esc(od.curse) : ''}</div>
         ${numField('强化等级 +', 'data-eq="plus"', it.plus || 0, `0 ~ ${G.MAX_PLUS}`)}</div>`;
+    }
+    /* 灵器（r=8，DLC《炼妖壶》）：白装底子封进器灵，词条全部来自器灵，读档时 yaoItemFix
+       会按器灵重建（state.js:463），手改存不下来。这里只开放强化等级和宝石 ——
+       宝石是直接乘在属性里的，器灵不重建它。 */
+    if (NS.isLing(it)) {
+      const ling = it.ling || {}, name = ling.name || ling.k || '器灵';
+      const asleep = typeof yaoAsleep === 'function' ? yaoAsleep() : false;
+      const affs = (it.aff || []).map(function (f) {
+        return `<div class="iap-aff ro"><span class="iap-affk">${statName(f.k)}</span>
+          <span class="iap-affv">${valTxt(f.v, f.k)}</span>
+          <span class="iap-range">器灵词条<br><i>由器灵决定，读档重建</i></span></div>`;
+      }).join('');
+      return head + `<div class="iap-sec"><div class="iap-sechd"><b>灵器</b><small>词条由器灵决定，只开放强化与宝石</small></div>
+        ${asleep ? `<div class="iap-hint bad">器灵沉睡中（DLC 未拥有或文件未加载），这件只剩白装底子。</div>` : ''}
+        <div class="iap-hint">器灵：<b>${NS.esc(name)}</b>${ling.t ? ' · ' + NS.esc(String(ling.t)) : ''}
+          ${ling.base ? '　底子：' + NS.esc(ling.base) : ''}</div>
+        ${numField('强化等级 +', 'data-eq="plus"', it.plus || 0, `0 ~ ${G.MAX_PLUS}`)}
+        <div class="iap-hint">灵器的词缀和基础值不在这里改：它们由器灵决定，读档时游戏会重建一遍。</div>
+      </div>
+      ${affs ? `<div class="iap-sec"><div class="iap-sechd"><b>器灵词条</b><small>只读</small></div>${affs}</div>` : ''}
+      ${sockRows(it)}`;
     }
     const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${court ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
     /* 王庭：r 固定 6（品质按钮禁用），但「辉耀」就是它的上古，可以自由开关。
@@ -405,7 +445,16 @@
     const secNote = court
       ? (myth ? '神话品质与基础值由生成器决定，不开放手改' : '王庭品质与基础值由品阶倍率决定，不开放手改')
       : '改品质会改变词缀区间与词缀条数上限';
-    return head + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>${secNote}</small></div>
+    /* 深渊誓约（2.8.3）：腐化 / 绑定的提示。腐化后游戏已经把强化、附魔、打孔、升华、
+       灌注、蚀刻全部锁死（ui.js:961 / 971 / 1186），只有换宝石还能用；
+       调试台仍然允许改词缀和等级，但那是绕过游戏限制，先说清楚。 */
+    const abNote = NS.abyssCor(it)
+      ? `<div class="iap-hint bad">这件装备已经<b>腐化</b>：游戏里不能再强化 / 附魔 / 打孔 / 升华 / 灌注 / 蚀刻，只能换宝石。
+          下面的词缀和等级仍然可以改，但属于绕过限制，游戏本身不会拦。</div>`
+      : NS.isBound(it)
+        ? `<div class="iap-hint">角色绑定：蚀刻过或在深渊里掉的装备不能放进共用仓库 / 神话仓库。</div>`
+        : '';
+    return head + abNote + `<div class="iap-sec"><div class="iap-sechd"><b>品质与等级</b><small>${secNote}</small></div>
         <div class="iap-chips">${rBtns}</div>
         <div class="iap-chips">${flags}</div>
         ${numField('物品等级', 'data-eq="ilvl"', it.ilvl, `1 ~ ${cap}`)}
@@ -576,9 +625,10 @@
         it.aff.splice(i, 1); commit(); rerender(); return;
       }
       if (act === 'addsock') {
-        const max = G.SOCKET_MAX[it.t] || 0;
+        const base = typeof mythSockMax === 'function' ? mythSockMax(it) : (G.SOCKET_MAX[it.t] || 0);
+        const max = Math.max(base, (it.sock || []).length);
         it.sock = it.sock || [];
-        if (it.sock.length >= max) return;
+        if (it.sock.length >= max) { NS.toast('这个部位没有更多孔位了', true); return; }
         it.sock.push(null); commit(); rerender(); return;
       }
     });
@@ -677,6 +727,13 @@
       for (let i = 0; i < tabs.length; i++) if (i < open && tabs[i].length < tabCap) return i;
       return -1;
     };
+    /* 深渊誓约（2.8.3）：角色绑定的装备不能放进共用仓库（abyss_etch.js:262 的提示，
+       游戏的仓库操作也拦着），所以只走背包 → 个人仓库，满了就报错。 */
+    if (NS.isBound(it)) {
+      if (inv.length < LIM.inv()) { inv.push(it); return '背包'; }
+      if (stash.length < LIM.stash()) { stash.push(it); return '个人仓库'; }
+      return null;
+    }
     if (own) {
       if (inv.length < LIM.inv()) { inv.push(it); return '背包'; }
       if (stash.length < LIM.stash()) { stash.push(it); return '个人仓库'; }
@@ -697,6 +754,8 @@
   }
 
   function done(it, where) {
+    /* putItem 返回 null = 绑定装备，背包和个人仓库都满了，没地方放 */
+    if (!where) { NS.toast('背包和个人仓库都满了，绑定装备没地方放，先清一格再生成', true); return; }
     EQ.sel = it;
     NS.apply(false);                       // refreshStats → markAll → save（save 里会连带写账号档）
     NS.toast('已生成 ' + NS.itemName(it) + ' → ' + where);
