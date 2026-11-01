@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAP = window.IAP || {});
   NS.name = '深渊调试台';
-  NS.version = '0.9.1';
+  NS.version = '0.9.2';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -62,6 +62,8 @@
     get MYTH() { return typeof MYTH === 'object' ? MYTH : null; },
     get MYTH_KEYS() { return Array.isArray(MYTH_KEYS) ? MYTH_KEYS : []; },
     get MYTH_REALMS() { return Array.isArray(MYTH_REALMS) ? MYTH_REALMS : []; },
+    /* 骊龙宝珠「探骊」（myth.js:583）：金币价格与基础几率。几率还要乘神契等级（mythPearlRate）。 */
+    get MYTH_PEARL() { return typeof MYTH_PEARL === 'object' ? MYTH_PEARL : null; },
     get RIFT_DEEP() { return typeof RIFT_DEEP === 'object' ? RIFT_DEEP : null; },
     /* 深渊誓约（2.8.3，data_abyss.js / abyss.js / abyss_etch.js）：
        ABYSS_BAL 平衡表（解锁 / 深度 / 奖励公式 / 本周阶梯）、ABYSS_TAGS 誓约表、

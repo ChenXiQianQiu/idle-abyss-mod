@@ -425,7 +425,8 @@
       </div>
       ${affs ? `<div class="iap-sec"><div class="iap-sechd"><b>器灵词条</b><small>只读</small></div>${affs}</div>` : ''}
       ${sockRows(it)}
-      ${NS.etch ? NS.etch.block(it) : ''}`;
+      ${NS.etch ? NS.etch.block(it) : ''}
+      ${NS.pearl ? NS.pearl.block(it) : ''}`;
     }
     const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${court ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
     /* 王庭：r 固定 6（品质按钮禁用），但「辉耀」就是它的上古，可以自由开关。
@@ -464,7 +465,8 @@
       ${baseFields(it)}
       ${affRows(it)}
       ${sockRows(it)}
-      ${NS.etch ? NS.etch.block(it) : ''}`;
+      ${NS.etch ? NS.etch.block(it) : ''}
+      ${NS.pearl ? NS.pearl.block(it) : ''}`;
   }
 
   function render() {
@@ -711,6 +713,8 @@
 
     /* 深渊蚀刻区块（mod_etch.js）：点选哪件就操作哪件，不另做选择器 */
     if (NS.etch && NS.etch.bind) NS.etch.bind(root, function () { return EQ.sel; });
+    /* 骊龙宝珠「探骊」区块（mod_pearl.js）：同样是针对单件装备的操作 */
+    if (NS.pearl && NS.pearl.bind) NS.pearl.bind(root, function () { return EQ.sel; });
   }
 
   /* ---------- 生成 ---------- */
