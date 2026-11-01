@@ -315,6 +315,9 @@ python scripts/mod_pack.py --asar     # 额外塞入 build/app.asar（约 100MB�
 - 验证：在用户那把 `永夜歼灭炮` 的深拷贝上跑
   `idx=5/of8 | cur=eliteDmg | blk=ok | hasSwap=ok | pool=6,pick=vit | swap=true,k=vit |
   undo=true,n1=7,pearl1=undefined`，确认后删除自检
+- **已发 GitHub Release `v0.9.4`**，附件 `IdleAbyssMod-v0.9.4-share.zip`（91427 字节）。
+  仓库此前只发到 v0.7.0，所以这次的更新说明把 **v0.8.0 ~ v0.9.4 五版合并**成一份；
+  脚本是 `.tools/release_094.py`（可重复跑：已存在就 PATCH 正文、同名附件先删再传）
 
 ### 2026-11-02（v0.9.3）修放大后面板底部看不到 / 滚不到底
 
