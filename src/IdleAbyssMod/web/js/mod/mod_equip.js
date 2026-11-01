@@ -424,7 +424,8 @@
         <div class="iap-hint">灵器的词缀和基础值不在这里改：它们由器灵决定，读档时游戏会重建一遍。</div>
       </div>
       ${affs ? `<div class="iap-sec"><div class="iap-sechd"><b>器灵词条</b><small>只读</small></div>${affs}</div>` : ''}
-      ${sockRows(it)}`;
+      ${sockRows(it)}
+      ${NS.etch ? NS.etch.block(it) : ''}`;
     }
     const rBtns = [0, 1, 2, 3, 4].map(r => `<button class="iap-chip${it.r === r ? ' on' : ''}" data-r="${r}"${court ? ' disabled' : ''}>${G.RAR[r].n}</button>`).join('');
     /* 王庭：r 固定 6（品质按钮禁用），但「辉耀」就是它的上古，可以自由开关。
@@ -462,7 +463,8 @@
       </div>
       ${baseFields(it)}
       ${affRows(it)}
-      ${sockRows(it)}`;
+      ${sockRows(it)}
+      ${NS.etch ? NS.etch.block(it) : ''}`;
   }
 
   function render() {
@@ -706,6 +708,9 @@
       }
       commit(); rerender();
     });
+
+    /* 深渊蚀刻区块（mod_etch.js）：点选哪件就操作哪件，不另做选择器 */
+    if (NS.etch && NS.etch.bind) NS.etch.bind(root, function () { return EQ.sel; });
   }
 
   /* ---------- 生成 ---------- */

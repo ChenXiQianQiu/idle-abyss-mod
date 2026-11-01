@@ -29,6 +29,7 @@ MOD_JS = [
     "js/mod/mod_util.js",
     "js/mod/mod_resources.js",
     "js/mod/mod_equip.js",
+    "js/mod/mod_etch.js",
     "js/mod/mod_progress.js",
     "js/mod/mod_raid.js",
     "js/mod/mod_ultra.js",
