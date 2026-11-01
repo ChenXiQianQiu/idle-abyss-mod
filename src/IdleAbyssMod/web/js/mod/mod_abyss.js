@@ -120,6 +120,147 @@
       <div class="iap-affadd"><button class="iap-btn" data-ab="fill">三种各补到 999</button></div></div>`;
   }
 
+  /* ---------- 蚀刻控制（2.8.3） ----------
+     全部靠包装游戏的顶层函数实现，开关关掉时原样转发，行为和未装 Mod 一致：
+       · abyssEtch(it, useWard)   点「蚀刻」的入口（abyss_etch.js:99）
+       · abyssCorrupt(it, table)  腐化结算（abyss_etch.js:81）：换掉结果表就是「必定双重」
+       · abyssRollCaff(n)         随机 n 条腐化词缀（abyss_etch.js:72）：换成自选
+     三个都是顶层 function 声明 → 挂在 window 上，内部是裸名调用，覆盖即生效。
+     注意 abyssEtch 内部调 abyssCorrupt 也是裸名，所以包装 abyssCorrupt 能同时管住
+     「蚀刻失败」和「深渊之泪」两条腐化路径。 */
+  const ET = (AB.etch = {
+    ok: !!NS.prefs.abEtchOk,
+    notries: !!NS.prefs.abEtchNoTries,
+    twin: !!NS.prefs.abEtchTwin,
+    caff: Array.isArray(NS.prefs.abEtchCaff) ? NS.prefs.abEtchCaff.filter(function (k) { return typeof k === 'string'; }) : [],
+    sel: '',
+  });
+  const origFn = {};
+  function saveEtchPrefs() {
+    NS.prefs.abEtchOk = ET.ok;
+    NS.prefs.abEtchNoTries = ET.notries;
+    NS.prefs.abEtchTwin = ET.twin;
+    NS.prefs.abEtchCaff = ET.caff.slice();
+    NS.savePrefs();
+  }
+
+  function hookEtch() {
+    /* 必定成功：点蚀刻的那一瞬间把该阶的成功率临时改成 1，调用完立刻还原 ——
+       不改游戏的表，避免影响别的地方（深渊之泪、回归基线）读同一个数字。 */
+    if (typeof abyssEtch === 'function' && !origFn.etch) {
+      origFn.etch = abyssEtch;
+      window.abyssEtch = function (it, useWard) {
+        const T = G.ABYSS_ETCH, before = it && it.abyss && Number.isFinite(it.abyss.n) ? it.abyss.n : null;
+        const lv = it && it.abyss ? (Number(it.abyss.lv) || 0) : 0;
+        let saved = null;
+        if (ET.ok && T && Array.isArray(T.rate) && Number.isFinite(T.rate[lv])) { saved = T.rate[lv]; T.rate[lv] = 1; }
+        let r;
+        try { r = origFn.etch.apply(this, arguments); }
+        finally { if (saved != null) T.rate[lv] = saved; }
+        /* 不消耗次数：把 n 还原成调用前的值。abyssEtch 内部会整块重建 it.abyss，
+           所以用调用前记下的数字，而不是读现在的。 */
+        if (r && ET.notries && before != null && it.abyss) {
+          it.abyss.n = before;
+          try { if (typeof abyssCanon === 'function') it.abyss = abyssCanon(it.abyss, it); } catch (e) { }
+          try { save(); } catch (e) { }
+        }
+        return r;
+      };
+    }
+    /* 必定双重腐化：把结果表换成只有 twin 一项，原函数自己的 n=2 / 加孔 / 阶数变化都照走 */
+    if (typeof abyssCorrupt === 'function' && !origFn.corrupt) {
+      origFn.corrupt = abyssCorrupt;
+      window.abyssCorrupt = function (it, table) {
+        if (ET.twin) table = [['twin', 1]];
+        return origFn.corrupt.call(this, it, table);
+      };
+    }
+    /* 自选腐化词缀：只替换「取哪几条」，不足的部分让原函数补随机 */
+    if (typeof abyssRollCaff === 'function' && !origFn.caff) {
+      origFn.caff = abyssRollCaff;
+      window.abyssRollCaff = function (n) {
+        const want = ET.caff.filter(function (k) { return k && G.ABYSS_CAFF && G.ABYSS_CAFF[k]; });
+        if (!want.length) return origFn.caff.call(this, n);
+        const out = want.slice(0, n);
+        if (out.length < n) {
+          origFn.caff.call(this, n).forEach(function (k) { if (out.length < n && out.indexOf(k) < 0) out.push(k); });
+        }
+        return out;
+      };
+    }
+  }
+  hookEtch();
+  if (!origFn.etch || !origFn.corrupt || !origFn.caff) setTimeout(hookEtch, 1000);
+
+  /* 可蚀刻的装备（传奇 / 套装 / 王庭 / 神话 / 灵器），来源和装备页同一份 collectItems */
+  function etchTargets() {
+    if (typeof abyssEtchable !== 'function') return [];
+    try { return NS.collectItems().filter(function (x) { return x.it && abyssEtchable(x.it); }); }
+    catch (e) { return []; }
+  }
+  function target() {
+    const list = etchTargets();
+    if (!list.length) return null;
+    if (!ET.sel || !list.some(function (x) { return x.it.id === ET.sel; })) ET.sel = list[0].it.id;
+    return list.filter(function (x) { return x.it.id === ET.sel; })[0] || null;
+  }
+
+  function caffSelectHTML(idx) {
+    const T = G.ABYSS_CAFF || {}, cur = ET.caff[idx] || '';
+    const used = ET.caff.filter(function (k, i) { return i !== idx && k; });
+    const opts = ['<option value="">（随机）</option>'].concat(Object.keys(T).map(function (k) {
+      return `<option value="${k}"${k === cur ? ' selected' : ''}>${NS.esc(T[k].n)}${used.indexOf(k) >= 0 ? ' · 已选' : ''}</option>`;
+    })).join('');
+    return `<select class="iap-in sm" data-ab="caff:${idx}" aria-label="腐化词缀 ${idx + 1}">${opts}</select>`;
+  }
+
+  function etchCtlHTML() {
+    const T = G.ABYSS_ETCH;
+    if (!T || typeof abyssEtch !== 'function') return '';
+    const rars = (T.rars || []).map(function (r) { return (G.RAR[r] || {}).n || r; }).join(' / ');
+    const toggles = [
+      ['ok', '蚀刻必定成功', '成功率按 100% 算，只在点「蚀刻」的那一次生效，不改游戏的表'],
+      ['notries', '蚀刻不消耗次数', '次数用完也能继续蚀刻，每件最多 5 阶'],
+      ['twin', '腐化必定双重', '蚀刻失败 / 深渊之泪固定走「双重腐化」：2 条词缀'],
+    ].map(function (t) {
+      return `<div class="iap-row"><div class="iap-lab"><b>${t[1]}</b><small>${t[2]}</small></div>
+        <button class="iap-chip${ET[t[0]] ? ' on' : ''}" data-ab="tog:${t[0]}">${ET[t[0]] ? '已开启' : '已关闭'}</button></div>`;
+    }).join('');
+
+    const list = etchTargets();
+    let body;
+    if (!list.length) {
+      body = `<div class="iap-hint">背包、仓库、已装备里没有可蚀刻的装备（只对 ${rars || '传奇及以上'} 有效）。</div>`;
+    } else {
+      const x = target(), it = x.it, a = NS.abyssOf(it);
+      const lv = a ? (Number(a.lv) || 0) : 0, n = a ? (Number(a.n) || 0) : 0;
+      const tries = Number(T.tries) || 6;
+      const opts = list.map(function (y) {
+        const b = NS.abyssOf(y.it), bl = b ? (Number(b.lv) || 0) : 0, bn = b ? (Number(b.n) || 0) : 0;
+        return `<option value="${y.it.id}"${y.it.id === ET.sel ? ' selected' : ''}>${NS.esc(NS.itemName(y.it))} · ${y.tag} · ${bl} 阶 · ${bn}/${tries}</option>`;
+      }).join('');
+      const cor = NS.abyssCor(it);
+      body = `<div class="iap-row"><div class="iap-lab"><b>目标装备</b><small>只列可蚀刻的（${list.length} 件）</small></div>
+          <select class="iap-in" data-ab="target" aria-label="蚀刻目标">${opts}</select></div>
+        <div class="iap-row"><div class="iap-lab"><b>当前状态</b><small>${cor ? '已腐化：不能再蚀刻' : '深渊阶 ' + lv + ' / ' + T.max + ' · 已用 ' + n + ' / ' + tries + ' 次'}</small></div>
+          <div class="iap-cur"><i>${cor ? '腐化' : lv + ' 阶'}</i></div></div>
+        <div class="iap-affadd">
+          <button class="iap-btn" data-ab="resettries">回满蚀刻次数</button>
+          <button class="iap-btn${cor ? ' ghost' : ' pri'}" data-ab="corrupt"${cor ? ' disabled' : ''}>立即腐化（双重 + 自选）</button>
+        </div>
+        <div class="iap-hint">「回满次数」= 把已用次数清零（${tries} 次全回来），不动阶数和腐化状态。</div>`;
+    }
+
+    return `<div class="iap-sec"><div class="iap-sechd"><b>蚀刻控制</b><small>只对 ${rars || '传奇及以上'} 有效</small></div>
+      ${toggles}
+      <div class="iap-row"><div class="iap-lab"><b>腐化词缀</b><small>留空 = 随机；填了就按这里的顺序取，最多 2 条</small></div>
+        <div class="iap-cds">${caffSelectHTML(0)}${caffSelectHTML(1)}</div></div>
+      <div class="iap-hint">选了词缀后，「必定双重」和「立即腐化」都会用这两条；只选 1 条时另一条随机补。
+        关掉「必定双重」时，只有「立即腐化」按钮还吃这个选择（蚀刻失败时按游戏的随机结果走）。</div>
+      ${body}
+    </div>`;
+  }
+
   /* 誓约速查：按分类分组，每条的等级效果都列出来，誓重标在名字后面 */
   function tagsHTML() {
     const list = G.ABYSS_TAGS || [];
@@ -184,10 +325,11 @@
       AB.logged = true;
       try {
         reportErr(`[IAP] 深渊页 ok: tags=${(G.ABYSS_TAGS || []).length} best=${Number(a.best) || 0} ` +
-          `heart=${Number(a.heart) || 0} ward=${Number(a.ward) || 0} tear=${Number(a.tear) || 0}`);
+          `heart=${Number(a.heart) || 0} ward=${Number(a.ward) || 0} tear=${Number(a.tear) || 0} ` +
+          `etch=${origFn.etch ? 1 : 0}${origFn.corrupt ? 1 : 0}${origFn.caff ? 1 : 0}`);
       } catch (e) { }
     }
-    return headHTML(a) + weekHTML(a) + currencyHTML(a) + etchHTML() + tagsHTML();
+    return headHTML(a) + weekHTML(a) + currencyHTML(a) + etchCtlHTML() + etchHTML() + tagsHTML();
   }
 
   function bind(root) {
@@ -196,6 +338,41 @@
       if (!btn) return;
       const act = String(btn.dataset.ab), a = st();
       if (!a) return;
+      /* ---- 蚀刻控制 ---- */
+      if (act.indexOf('tog:') === 0) {
+        const k = act.slice(4);
+        if (!['ok', 'notries', 'twin'].includes(k)) return;
+        ET[k] = !ET[k];
+        saveEtchPrefs(); rerender();
+        NS.toast(({ ok: '蚀刻必定成功', notries: '蚀刻不消耗次数', twin: '腐化必定双重' })[k] + (ET[k] ? ' 已开启' : ' 已关闭'));
+        return;
+      }
+      if (act === 'resettries') {
+        const x = target(); if (!x) return;
+        const it = x.it;
+        if (!it.abyss) it.abyss = (typeof abyssCanon === 'function' ? abyssCanon({ lv: 0, n: 0, cor: 0 }, it) : { lv: 0, n: 0, cor: 0 });
+        it.abyss.n = 0;
+        try { if (typeof abyssCanon === 'function') it.abyss = abyssCanon(it.abyss, it); } catch (e) { }
+        NS.apply(false); rerender();
+        NS.toast('已回满蚀刻次数：' + NS.itemName(it));
+        return;
+      }
+      if (act === 'corrupt') {
+        const x = target(); if (!x) return;
+        const it = x.it;
+        if (typeof abyssEtchable !== 'function' || !abyssEtchable(it)) { NS.toast('这件装备不能蚀刻', true); return; }
+        if (NS.abyssCor(it)) { NS.toast('已经腐化了', true); return; }
+        /* 走游戏自己的 abyssCorrupt：结果表固定 twin（包装里也会强制），
+           词缀走包装后的 abyssRollCaff（自选）。阶数、加孔、绑定都由原函数处理。 */
+        if (typeof abyssCorrupt !== 'function') { NS.toast('找不到 abyssCorrupt', true); return; }
+        if (!it.abyss) it.abyss = (typeof abyssCanon === 'function' ? abyssCanon({ lv: 0, n: 0, cor: 0 }, it) : { lv: 0, n: 0, cor: 0 });
+        try { abyssCorrupt(it, [['twin', 1]]); } catch (e) { NS.toast('腐化失败：' + (e && e.message), true); return; }
+        try { refreshStats(); save(); markAll(); } catch (e) { }
+        rerender();
+        const names = (NS.abyssOf(it).caff || []).map(function (k) { return (G.ABYSS_CAFF[k] || {}).n || k; });
+        NS.toast('已腐化（双重）：' + names.join(' + '));
+        return;
+      }
       if (act === 'fill') {
         ['heart', 'ward', 'tear'].forEach(function (k) { a[k] = Math.max(a[k] || 0, 999); });
         NS.apply(false); rerender();
@@ -227,6 +404,15 @@
       if (!el.dataset || !el.dataset.ab) return;
       const act = String(el.dataset.ab), a = st();
       if (!a) return;
+      /* ---- 蚀刻控制：换目标 / 选腐化词缀（不需要重绘整页，只换这一段的状态） ---- */
+      if (act === 'target') { ET.sel = el.value; rerender(); return; }
+      if (act.indexOf('caff:') === 0) {
+        const i = Number(act.slice(5)) || 0;
+        while (ET.caff.length <= i) ET.caff.push('');
+        ET.caff[i] = el.value || '';
+        saveEtchPrefs();
+        return;
+      }
       if (act === 'depth') {
         const cur = (a.presets && a.presets[a.pick]) || null;
         if (!cur) return;
