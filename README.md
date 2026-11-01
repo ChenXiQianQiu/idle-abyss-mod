@@ -1,7 +1,7 @@
 # 深渊调试台 · Idle Abyss Mod
 
 《深渊放置姬 / Idle Abyss Princesses》的游戏内调试面板 Mod，按 **F1** 打开 / 关闭，
-所有改动即时写入存档。当前版本 **v0.9.2**，适配游戏 2.8.3（深渊誓约 / 蚀刻 / 新职业 / DLC《炼妖壶》的灵器）。
+所有改动即时写入存档。当前版本 **v0.9.3**，适配游戏 2.8.3（深渊誓约 / 蚀刻 / 新职业 / DLC《炼妖壶》的灵器）。
 
 > 仓库只包含 Mod 自己的源码与脚本，**不含任何游戏文件**。使用需要自备正版游戏。
 
@@ -9,7 +9,7 @@
 
 ### 方式一：下载分享包（推荐）
 
-到 [Releases](../../releases) 下载 `IdleAbyssMod-v0.9.2-share.zip`，解压到**游戏根目录**
+到 [Releases](../../releases) 下载 `IdleAbyssMod-v0.9.3-share.zip`，解压到**游戏根目录**
 （能看到 `IdleAbyssPrincesses.exe` 和 `resources` 文件夹的那一层），双击 `安装.bat`。
 需要本机有 Python 3。装完启动游戏即可（Steam 版从库里启动，其他版本直接运行 exe 也行）。
 

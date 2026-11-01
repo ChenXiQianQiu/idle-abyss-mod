@@ -66,21 +66,42 @@
     bindDrag(root.querySelector('[data-drag]'));
   }
 
+  /* 面板是 transform: scale() 缩放的 —— 布局尺寸不变，视觉尺寸 = 布局 × scale。
+     所以 max-height 不能直接写 100vh，必须按 1/scale 折算成布局像素：
+     否则放大到 186% 时面板的可视高度是屏幕的 1.86 倍，底部的 .iap-body 下边缘
+     和滚动条一起跑到屏幕外，表现就是「放大后看不到下面的内容」，
+     以及「滚到底还有一截没显示」（差的就是屏幕外那一块）。
+     宽度同理收一下，免得小窗口上放大后右边也出去。 */
+  function fitBox() {
+    if (!root) return;
+    const vh = window.innerHeight || 720, vw = window.innerWidth || 1280;
+    root.style.maxHeight = Math.round(Math.max(200, (vh - 24) / P.scale)) + 'px';
+    root.style.width = Math.round(Math.max(480, Math.min(900, (vw - 16) / P.scale))) + 'px';
+  }
+
   function applyScale() {
     if (!root) return;
+    fitBox();
     root.style.transform = `scale(${P.scale})`;
     scaleTxt.textContent = Math.round(P.scale * 100) + '%';
   }
 
   function applyPos() {
     if (!root) return;
-    const w = 900 * P.scale, h = Math.min(640, window.innerHeight - 24) * P.scale;
+    const vw = window.innerWidth || 1280, vh = window.innerHeight || 720;
+    /* offsetWidth / offsetHeight 是布局尺寸（不受 transform 影响），乘 scale 才是屏幕上的大小 */
+    const w = (root.offsetWidth || 900) * P.scale;
+    const h = (root.offsetHeight || 640) * P.scale;
     if (!P.x && !P.y) {
-      P.x = Math.max(8, Math.round((window.innerWidth - w) / 2));
-      P.y = Math.max(8, Math.round((window.innerHeight - h) / 2));
+      P.x = Math.round((vw - w) / 2);
+      P.y = Math.round((vh - h) / 2);
     }
-    P.x = Math.max(-w * .5, Math.min(window.innerWidth - 60, P.x));
-    P.y = Math.max(0, Math.min(window.innerHeight - 40, P.y));
+    /* 整块留在可视区里。max-height 已经按 1/scale 折算过，所以面板高度基本等于窗口高度，
+       位置再往下挪 20px 就会把页脚和滚动条末端顶出屏幕 —— 那正是「放大后看不到下面」
+       和「滚到底还差一截」的另一半原因（只修 max-height 不够）。
+       面板比窗口还大时（小窗口 + 大缩放）就贴住左上角，靠内部滚动看内容。 */
+    P.x = Math.max(0, Math.min(Math.max(0, vw - w - 8), P.x));
+    P.y = Math.max(0, Math.min(Math.max(0, vh - h - 8), P.y));
     root.style.left = P.x + 'px';
     root.style.top = P.y + 'px';
   }
@@ -146,6 +167,9 @@
     if (st) putScroll(st); else bodyEl.scrollTop = 0;
     if (tab.bind) { try { tab.bind(paneRoot); } catch (e) { console.warn('[IAP] bind', e); } }
     lastS = NS.G.S; lastSlot = NS.G.slot;
+    /* 页面高度变了（比如从短的秘境页切到长的深渊页），面板会长高，这时要把位置重新夹一次，
+       否则长出来的那截会顶到屏幕外面去 */
+    applyPos();
   }
 
   /* 重绘保留滚动位置；切标签 / 换角色时才回到顶部 */
@@ -177,6 +201,8 @@
     P.open = true;
     selftest();
     renderBody();
+    /* 内容填进去之后面板才有真实高度，这时再摆一次位置（只在没有保存过坐标时生效） */
+    applyScale(); applyPos();
   };
   P.hide = function () {
     if (!root) return;
@@ -203,5 +229,6 @@
     if (curTab && curTab.sync && paneRoot) { try { curTab.sync(paneRoot); } catch (e) { } }
   }, 1000);
 
-  window.addEventListener('resize', applyPos);
+  /* 窗口大小变了：max-height 是按 1/scale 折算的，必须重算，否则拉窗口后又会跑出屏幕 */
+  window.addEventListener('resize', function () { applyScale(); applyPos(); });
 })();

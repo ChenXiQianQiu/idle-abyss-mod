@@ -32,7 +32,7 @@
 }
 
 /* ---------- 标题栏 ---------- */
-.iap-hd { display: flex; align-items: center; gap: 6px; padding: 3px 6px 4px; cursor: move;
+.iap-hd { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 3px 6px 4px; cursor: move;
   background: linear-gradient(#2a2229, #1d171c); border-bottom: 1px solid var(--edge, #0a0708); }
 .iap-title { color: var(--gold-hi, #f0d070); letter-spacing: 1px; }
 .iap-ver { color: var(--mute, #6a5e52); font-size: 10px; }
@@ -40,14 +40,18 @@
 .iap-sp { flex: 1; }
 
 /* ---------- 标签页 ---------- */
-.iap-tabs { display: flex; gap: 3px; padding: 5px 6px 0; }
+.iap-tabs { flex: 0 0 auto; display: flex; gap: 3px; padding: 5px 6px 0; }
 .iap-tab { padding: 2px 12px; color: var(--dim, #9a8a74); background: var(--stone2, #262026);
   border: 1px solid var(--edge, #0a0708); box-shadow: inset 1px 1px 0 #3a3138; }
 .iap-tab:hover { color: #fff; background: #3c333a; }
 .iap-tab.on { color: var(--gold-hi, #f0d070); background: #4a3a1e; box-shadow: inset 1px 1px 0 #7a5a1a; }
 
-/* ---------- 主体 ---------- */
+/* ---------- 主体 ----------
+   max-height 由 mod_panel.js 的 fitBox() 按 1/scale 折算后写成内联样式
+   （面板是 transform: scale() 缩放的，布局尺寸不跟着变）。这里只留兜底值。
+   overscroll-behavior: contain —— 滚到底之后别把滚轮漏给游戏页面。 */
 .iap-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; margin-top: 4px;
+  overscroll-behavior: contain;
   background: var(--stone0, #141013); border: 1px solid var(--edge, #0a0708);
   box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 var(--stone3, #322a31); }
 .iap-body::-webkit-scrollbar { width: 8px; }
@@ -127,6 +131,7 @@ select.iap-in { text-align: left; }
 .iap-eqtop { display: flex; flex-direction: column; gap: 4px; }
 .iap-eqtop .iap-in { width: 100%; text-align: left; }
 .iap-eqitems { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid #241d22; background: #100d11; padding: 2px; }
 .iap-eqitems::-webkit-scrollbar { width: 8px; }
 .iap-eqitems::-webkit-scrollbar-thumb { background: #3a3138; }
@@ -188,7 +193,9 @@ select.iap-in { text-align: left; }
 .iap-tagw { flex: 0 0 34px; text-align: right; color: #c070ff; font-size: 11px; font-variant-numeric: tabular-nums; }
 
 /* ---------- 底部 ---------- */
-.iap-ft { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; }
+/* 标题栏 / 页签 / 页脚不参与收缩：面板 max-height 是按缩放折算过的，
+   内容超高时必须只压 .iap-body（它有 min-height:0），否则这三行会被挤扁、文字被切掉。 */
+.iap-ft { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; }
 .iap-tip { color: var(--mute, #6a5e52); font-size: 10px; }
 
 /* ---------- 轻提示 ---------- */
