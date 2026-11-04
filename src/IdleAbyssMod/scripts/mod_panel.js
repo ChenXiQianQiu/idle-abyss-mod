@@ -7,7 +7,7 @@
         以及一个 1 秒一次的轻量同步（只刷数字，不重建 DOM）。
    ============================================================ */
 (function () {
-  const NS = window.IAP;
+  const NS = window.IAPM;
   const P = (NS.panel = { open: false, tab: 'res', scale: 1, x: 0, y: 0 });
   let root = null, bodyEl = null, tabEl = null, scaleTxt = null;
   let paneRoot = null, curTab = null, lastS = null, lastSlot = 0;
@@ -157,15 +157,15 @@
     try { html = tab.render(); }
     catch (e) {
       html = `<div class="iap-empty bad">渲染失败：${NS.esc(e && e.message)}</div>`;
-      console.warn('[IAP] render', e);
-      try { reportErr('[IAP] 渲染失败(' + tab.key + '): ' + (e && (e.stack || e.message))); } catch (e2) { }
+      console.warn('[IAPM] render', e);
+      try { reportErr('[IAPM] 渲染失败(' + tab.key + '): ' + (e && (e.stack || e.message))); } catch (e2) { }
     }
     bodyEl.innerHTML = '';
     paneRoot = NS.el('div', 'iap-pane');
     paneRoot.innerHTML = html;
     bodyEl.appendChild(paneRoot);
     if (st) putScroll(st); else bodyEl.scrollTop = 0;
-    if (tab.bind) { try { tab.bind(paneRoot); } catch (e) { console.warn('[IAP] bind', e); } }
+    if (tab.bind) { try { tab.bind(paneRoot); } catch (e) { console.warn('[IAPM] bind', e); } }
     lastS = NS.G.S; lastSlot = NS.G.slot;
     /* 页面高度变了（比如从短的秘境页切到长的深渊页），面板会长高，这时要把位置重新夹一次，
        否则长出来的那截会顶到屏幕外面去 */
@@ -191,7 +191,7 @@
       } catch (e) { bad.push(t.key + ':' + ((e && e.message) || e)); }
     });
     try {
-      reportErr('[IAP] 页签自检 ' + (bad.length ? '失败 → ' + bad.join(' | ') : '全部通过（' + NS.tabs.length + ' 页）'));
+      reportErr('[IAPM] 页签自检 ' + (bad.length ? '失败 → ' + bad.join(' | ') : '全部通过（' + NS.tabs.length + ' 页）'));
     } catch (e) { }
   }
 

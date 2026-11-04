@@ -11,9 +11,9 @@
    但 Mod 自己的代码全部包在 IIFE 里，避免往全局塞变量。
    ============================================================ */
 (function () {
-  const NS = (window.IAP = window.IAP || {});
+  const NS = (window.IAPM = window.IAPM || {});
   NS.name = '深渊调试台';
-  NS.version = '0.9.4';
+  NS.version = '1.0.0';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
 
@@ -39,7 +39,9 @@
     get MAX_PLUS() { return MAX_PLUS; },
     get KEY_CAP() { return KEY_CAP; },
     get LEVEL_CAP() { return LEVEL_CAP; },
-    get SHARED_TABS() { return SHARED_TABS; },
+    /* 共用仓库的分页表在 3.0.0 里已经不存在（改成 A.shared.tabs + open），
+       直接裸引用会在取 getter 时抛 ReferenceError，所以先判存在。 */
+    get SHARED_TABS() { return typeof SHARED_TABS === 'object' ? SHARED_TABS : null; },
     get RULES2() { return RULES2; },
     /* 团本（永夜王庭）相关：难度表、首领表、首领简称、平衡表、单人运行态 */
     get RAID_DIFFS() { return typeof RAID_DIFFS === 'object' ? RAID_DIFFS : []; },
@@ -104,15 +106,15 @@
   /* 应用改动：重算属性 → 标脏界面 → 立刻存档。
      存档是异步安全的（主进程同步写），失败时游戏自己会弹提示，这里不重复。 */
   NS.apply = function (full) {
-    try { F.refresh(!!full); } catch (e) { console.warn('[IAP] refreshStats 失败', e); }
+    try { F.refresh(!!full); } catch (e) { console.warn('[IAPM] refreshStats 失败', e); }
     try { F.markAll(); } catch (e) { }
-    try { F.save(); } catch (e) { console.warn('[IAP] save 失败', e); }
+    try { F.save(); } catch (e) { console.warn('[IAPM] save 失败', e); }
   };
   /* 只写账号档（account.json）。营地派遣、好感这类数据全在 A 里，
      走 save() 会顺带做一次角色存档和属性快照，没必要。 */
   NS.saveAcc = function () {
     try { return typeof saveAccount === 'function' ? !!saveAccount() : false; }
-    catch (e) { console.warn('[IAP] saveAccount 失败', e); return false; }
+    catch (e) { console.warn('[IAPM] saveAccount 失败', e); return false; }
   };
 
   /* ---------- 数值解析 ----------

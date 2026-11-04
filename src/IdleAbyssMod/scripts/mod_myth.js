@@ -47,7 +47,7 @@
    想验证后期强度时一件件打太慢。这两步只写 A.myth，走游戏自己的 refreshStats。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const MY = (NS.myth = {
     forceBeast: !!NS.prefs.mythForceBeast,
     forceAvatar: !!NS.prefs.mythForceAvatar,

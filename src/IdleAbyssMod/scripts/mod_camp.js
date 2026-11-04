@@ -24,7 +24,7 @@
    属性快照，这里没必要。A 的所有改动都由 saveAccount 里的 validAccount 兜底校验。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const C = (NS.camp = { sig: '' });
   const rerender = function () { if (NS.panel) NS.panel.refresh(); };
 
@@ -108,7 +108,7 @@
 
   function claimOne(id) {
     let r = null;
-    try { r = typeof campClaim === 'function' ? campClaim(id) : null; } catch (e) { console.warn('[IAP] campClaim 失败', e); }
+    try { r = typeof campClaim === 'function' ? campClaim(id) : null; } catch (e) { console.warn('[IAPM] campClaim 失败', e); }
     return r;
   }
 

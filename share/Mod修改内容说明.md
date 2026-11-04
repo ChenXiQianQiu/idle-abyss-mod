@@ -2,11 +2,16 @@
 
 ## 当前包含的 Mod
 
-### 深渊调试台（IdleAbyssMod）v0.9.4
+### 深渊调试台（IdleAbyssMod）v1.0.0
 
 游戏内按 **F1** 打开 / 关闭的调试面板，像素风界面与游戏本体一致，支持 `－/＋` 调整整个面板
 （含文字）的缩放，标题栏可拖动。所有改动**即时写入存档**。
-适配游戏 **2.8.3**（深渊誓约 / 蚀刻 / 新职业 / DLC《炼妖壶》的灵器）。
+适配游戏 **3.0.0**。
+
+**v1.0.0 起是官方模组包**（3.0.0 新增的模组系统）：不再修改 `resources/app.asar`，
+模组本体就是一个文件夹，放进 `%APPDATA%\IdleAbyssPrincesses\mods\chenxi_abyss_debug\`
+就生效；游戏更新不会再把 Mod 冲掉，也不用 Python。面板入口有三处：
+F1、顶栏「调试」按钮、设置 → 模组 → 深渊调试台。
 
 **资源页**
 
@@ -295,6 +300,41 @@ python scripts/mod_pack.py --asar     # 额外塞入 build/app.asar（约 100MB�
 本文件（功能台账）不进包。
 
 ## 更新记录
+
+### 2026-11-04（v1.0.0）迁移到游戏 3.0.0 的官方模组系统
+
+游戏 3.0.0 是个大版本（asar 123.7 MB → 134.6 MB，文件 1276 → 1362），核心是**官方模组系统 +
+Steam 创意工坊**：`web/js/mods.js` 加载器、`electron/mods.js` 扫描本地模组、`web/js/workshop.js`
+工坊界面、包内 `docs/MODDING.md`（1073 行）。游戏还在 `web/js/mod_api.js:262` 定义了一个顶层
+`const IAP` 作为官方模组接口 —— **和本 Mod 原来的 `window.IAP` 完全撞名**。
+
+所以这次不是加功能，是换装法：
+
+- **装法**：不再注入 `resources/app.asar`。模组就是一个文件夹，
+  `%APPDATA%\IdleAbyssPrincesses\mods\chenxi_abyss_debug\`（`mod.json` + `scripts/`），
+  游戏开机时自己扫描。好处：游戏更新不再冲掉 Mod，不需要 Python，也不会再出现
+  「Steam 更新显示内容文件已锁定」（那个锁就是本 Mod 改过的 asar 被占用导致的）
+- **加载时机**：`mod.json` 的 `"api": 3` + `lateScripts`，在**游戏脚本全部加载完、读档之前**执行，
+  和原来注入到 `</body>` 的时机几乎一致，所以包装 `window` 上同名函数的写法全部保留
+- **命名空间**：`window.IAP` → **`window.IAPM`**（13 个脚本一次性改名）。不改会被游戏的
+  `const IAP` 盖住，Mod 直接失效
+- **样式**：`styles/mod_panel.css` 构建时转成 `scripts/mod_styles.js` 注入内联 `<style>`。
+  页面 CSP 的 `style-src` 是 `'self' file: 'unsafe-inline'`，**不含 `iapmod:`**，
+  所以 `<link href="iapmod://...">` 会被拦，只能内联
+- **入口**：面板挂到官方接口上 —— `IAP.ui.addPanel`（设置 → 模组里的按钮）+
+  `IAP.ui.addTopButton`（顶栏「调试」）；F1 仍由面板自己接管（捕获阶段 + `preventDefault`，
+  所以官方热键分发会跳过，不会重复触发）
+- **构建脚本重写**：`scripts/mod_build.py` 现在只做「组装模组文件夹 + 复制到 mods 目录」，
+  `--restore` 取消（不再动 asar），新增 `--uninstall`；`scripts/mod_pack.py` 的分享包
+  改成「模组文件夹 + 安装.bat / 卸载.bat / 安装说明.txt」，装法从「解压到游戏根目录 + Python」
+  变成「双击安装.bat」
+- **验证**：游戏日志 `main.log` 出现
+  `模组：找到 1 个：chenxi_abyss_debug@local`、
+  `[IAPM] 深渊调试台 v1.0.0 loaded, panel=true, official=true`、
+  `[IAPM] 蚀刻钩子 111 全部挂上`、`[IAPM] 启动自检 全部通过（8 页）`
+- **顺手修**：`G.SHARED_TABS` 在 3.0.0 里已经不存在（共用仓库改成 `A.shared.tabs + open`），
+  原来裸引用会在取 getter 时抛 `ReferenceError`，改成先判 `typeof`
+
 
 ### 2026-11-02（v0.9.4）已探骊的装备也能换词条
 

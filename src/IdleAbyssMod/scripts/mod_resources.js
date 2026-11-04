@@ -13,7 +13,7 @@
    存取器，写 S.shards 等价于写 A.shards，所以这里统一走 S，让游戏自己处理落盘。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
 
   /* 单值资源行。get / set 都写成函数，避免读档换角色后指向旧对象。 */
   const ROWS = [

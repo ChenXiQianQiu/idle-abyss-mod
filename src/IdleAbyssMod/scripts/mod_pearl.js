@@ -20,7 +20,7 @@
    所以「必定成功」不去改那个函数，而是临时改它读的 MYTH_PEARL.rate。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G;
+  const NS = window.IAPM, G = NS.G;
 
   const PE = (NS.pearl = {
     ok: !!NS.prefs.myPearlOk,

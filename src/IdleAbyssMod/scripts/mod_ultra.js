@@ -31,7 +31,7 @@
    开关关掉时原样转发，行为与未装 Mod 完全一致。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const U = (NS.ultra = {
     noWeekly: !!NS.prefs.ultraNoWeekly,
     pickAff: !!NS.prefs.ultraPickAff,
@@ -96,7 +96,7 @@
         const cur = it.ultraAff && it.ultraAff.k;
         it.ultraRe = all.filter(function (k) { return k !== cur; });
       }
-      try { save(); } catch (e) { console.warn('[IAP] 保存升华待选失败', e); }
+      try { save(); } catch (e) { console.warn('[IAPM] 保存升华待选失败', e); }
       return r;
     };
     U.hooked.smith = true;

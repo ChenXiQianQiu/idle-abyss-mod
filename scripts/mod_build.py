@@ -1,222 +1,171 @@
 # -*- coding: utf-8 -*-
-"""把 src/IdleAbyssMod 注入游戏的 resources/app.asar。
+"""构建 / 安装「深渊调试台」—— 官方模组包（游戏 3.0.0 起的模组系统）。
 
-这个游戏是 Electron 应用（没有 Unity / BepInEx），渲染层就是一个普通网页，
-全部代码都在 resources/app.asar 里的 web/ 目录。所以 Mod 的做法是：
-    解出 asar → 覆盖 Mod 文件 → 在 index.html 末尾挂上 Mod 脚本 → 重新打包
+3.0.0 起游戏自带模组加载器，不再需要改 `resources/app.asar`：
+一个模组就是一个文件夹（mod.json + 脚本 + 样式），放进
+
+    %APPDATA%\\IdleAbyssPrincesses\\mods\\<模组 id>\\
+
+游戏开机时自己扫描加载（docs/MODDING.md「一、安装与加载」）。
 
 用法：
-    python scripts/mod_build.py            # 只生成 build/app.asar
-    python scripts/mod_build.py --install  # 生成并直接安装到游戏目录（自动备份）
-    python scripts/mod_build.py --restore  # 用备份还原原始 app.asar
+    python scripts/mod_build.py              # 只生成 build/mods/<id>/
+    python scripts/mod_build.py --install    # 生成并安装到存档目录的 mods/
+    python scripts/mod_build.py --uninstall  # 从存档目录删掉已安装的模组
+
+约定：
+    · 源码在 src/IdleAbyssMod/：mod.json（模板）、scripts/、styles/、version.txt；
+    · 样式只有一份真身 styles/mod_panel.css，构建时转成 scripts/mod_styles.js
+      —— 页面的 CSP 是 `style-src 'self' file: 'unsafe-inline'`，不含 iapmod:，
+        所以 <link href="iapmod://..."> 会被拦，只能注入内联 <style>；
+    · 版本号以 version.txt 为准，构建时写进 mod.json。
 """
-import hashlib
 import json
 import os
 import shutil
-import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASAR = os.path.join(ROOT, "resources", "app.asar")
-ASAR_BAK = os.path.join(ROOT, "resources", "app.asar.orig")
-MOD_SRC = os.path.join(ROOT, "src", "IdleAbyssMod", "web")
-BUILD_DIR = os.path.join(ROOT, "build")
-OUT = os.path.join(BUILD_DIR, "app.asar")
+MOD_SRC = os.path.join(ROOT, "src", "IdleAbyssMod")
+VER_FILE = os.path.join(MOD_SRC, "version.txt")
+BUILD_DIR = os.path.join(ROOT, "build", "mods")
 
-# 加载顺序即依赖顺序：工具层 → 各功能页 → 面板外壳 → 启动
+STYLE_SRC = os.path.join(MOD_SRC, "styles", "mod_panel.css")
+STYLE_JS = "mod_styles.js"
+
+# 加载顺序即依赖顺序：工具层 → 各功能页 → 面板外壳 → 启动（样式最先）
 MOD_JS = [
-    "js/mod/mod_util.js",
-    "js/mod/mod_resources.js",
-    "js/mod/mod_equip.js",
-    "js/mod/mod_etch.js",
-    "js/mod/mod_pearl.js",
-    "js/mod/mod_progress.js",
-    "js/mod/mod_raid.js",
-    "js/mod/mod_ultra.js",
-    "js/mod/mod_camp.js",
-    "js/mod/mod_myth.js",
-    "js/mod/mod_abyss.js",
-    "js/mod/mod_panel.js",
-    "js/mod/mod_boot.js",
+    "mod_util.js",
+    "mod_resources.js",
+    "mod_equip.js",
+    "mod_etch.js",
+    "mod_pearl.js",
+    "mod_progress.js",
+    "mod_raid.js",
+    "mod_ultra.js",
+    "mod_camp.js",
+    "mod_myth.js",
+    "mod_abyss.js",
+    "mod_panel.js",
+    "mod_boot.js",
 ]
-MOD_CSS = ["css/mod_panel.css"]
-BLOCK_BEGIN = "<!-- ===== IAP Mod begin ====="
-BLOCK_END = "<!-- ===== IAP Mod end ===== -->"
 
 
-def align4(n):
-    return (n + 3) & ~3
+def read_version():
+    with open(VER_FILE, "r", encoding="utf-8") as f:
+        return f.read().strip()
 
 
-def read_asar(path):
-    with open(path, "rb") as f:
-        raw = f.read()
-    first, header_size = struct.unpack_from("<II", raw, 0)
-    if first != 4:
-        raise ValueError("不是有效的 asar 文件：首字段应为 4，实际 %r" % first)
-    _, json_len = struct.unpack_from("<II", raw, 8)
-    header = json.loads(raw[16:16 + json_len].decode("utf-8"))
-    data_start = 8 + header_size
-    return header, raw, data_start
+def mods_dir():
+    """游戏的本地模组目录：%APPDATA%\\IdleAbyssPrincesses\\mods。"""
+    base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+    return os.path.join(base, "IdleAbyssPrincesses", "mods")
 
 
-def flatten(node, prefix=""):
-    """按原顺序产出 (相对路径, info, 数据或 None)。unpacked 文件不读数据。"""
-    out = []
-    for name, info in (node.get("files") or {}).items():
-        rel = (prefix + "/" + name) if prefix else name
-        if "files" in info:
-            out.extend(flatten(info, rel))
-        else:
-            out.append((rel, info, None))
-    return out
-
-
-def integrity_of(data):
-    return {
-        "algorithm": "SHA256",
-        "hash": hashlib.sha256(data).hexdigest(),
-        "blockSize": 4194304,
-        "blocks": [hashlib.sha256(data).hexdigest()],
-    }
-
-
-def inject_html(html):
-    # 幂等：先摘掉上一次注入的整段
-    if BLOCK_BEGIN in html:
-        i = html.index(BLOCK_BEGIN)
-        j = html.find(BLOCK_END, i)
-        if j >= 0:
-            html = html[:i] + html[j + len(BLOCK_END):]
-    lines = [BLOCK_BEGIN + " 深渊调试台（改动即时写档，F1 开关） -->"]
-    lines += ['<link rel="stylesheet" href="%s">' % f for f in MOD_CSS]
-    lines += ['<script src="%s"></script>' % f for f in MOD_JS]
-    lines.append(BLOCK_END)
-    block = "\n".join(lines)
-    if "</body>" not in html:
-        raise ValueError("index.html 里没有 </body>，无法注入")
-    return html.replace("</body>", block + "\n</body>")
+def style_js(css):
+    """把 CSS 包成一个注入 <style> 的脚本（内联样式不受 CSP 的 style-src 限制）。"""
+    body = json.dumps(css, ensure_ascii=False)
+    return (
+        "'use strict';\n"
+        "/* 自动生成，不要手改：源文件是 src/IdleAbyssMod/styles/mod_panel.css，\n"
+        "   由 scripts/mod_build.py 转成内联 <style>（页面的 style-src 不含 iapmod:）。*/\n"
+        "(function () {\n"
+        "  if (document.getElementById('iap-styles')) return;\n"
+        "  const st = document.createElement('style');\n"
+        "  st.id = 'iap-styles';\n"
+        "  st.textContent = %s;\n"
+        "  document.head.appendChild(st);\n"
+        "})();\n" % body
+    )
 
 
 def build():
-    header, raw, data_start = read_asar(ASAR)
-    entries = flatten(header)
-    files = {}          # 相对路径 -> {"info": dict, "data": bytes}
-    order = []
-    for rel, info, _ in entries:
-        data = None
-        if not info.get("unpacked"):
-            off, size = int(info["offset"]), int(info["size"])
-            data = raw[data_start + off: data_start + off + size]
-        files[rel] = {"info": dict(info), "data": data}
-        order.append(rel)
+    with open(os.path.join(MOD_SRC, "mod.json"), "r", encoding="utf-8") as f:
+        man = json.load(f)
+    ver = read_version()
+    man["version"] = ver
+    mod_id = man["id"]
+    out = os.path.join(BUILD_DIR, mod_id)
 
-    # 1) 覆盖 / 新增 Mod 文件
-    added = []
-    for rel_mod in (MOD_JS + MOD_CSS):
-        src = os.path.join(MOD_SRC, rel_mod.replace("/", os.sep))
+    if os.path.isdir(out):
+        shutil.rmtree(out)
+    os.makedirs(os.path.join(out, "scripts"))
+
+    # 1) 脚本
+    for name in MOD_JS:
+        src = os.path.join(MOD_SRC, "scripts", name)
         if not os.path.isfile(src):
-            raise SystemExit("缺少 Mod 文件：%s" % src)
-        with open(src, "rb") as f:
-            data = f.read()
-        key = "web/" + rel_mod
-        if key not in files:
-            added.append(key)
-            order.append(key)
-        files[key] = {"info": {}, "data": data}
+            raise SystemExit("缺少脚本：%s" % src)
+        shutil.copy2(src, os.path.join(out, "scripts", name))
 
-    # 2) 注入 index.html
-    key = "web/index.html"
-    if key not in files or files[key]["data"] is None:
-        raise SystemExit("asar 里找不到 web/index.html")
-    html = files[key]["data"].decode("utf-8")
-    new_html = inject_html(html).encode("utf-8")
-    files[key]["data"] = new_html
+    # 2) 样式 → 内联脚本
+    with open(STYLE_SRC, "r", encoding="utf-8") as f:
+        css = f.read()
+    with open(os.path.join(out, "scripts", STYLE_JS), "w", encoding="utf-8") as f:
+        f.write(style_js(css))
 
-    # 3) 重新分配 offset 并算 integrity（只重算内容变过的文件）
-    blob = bytearray()
-    for rel in order:
-        item = files[rel]
-        info = item["info"]
-        if info.get("unpacked"):
-            continue
-        data = item["data"]
-        info["offset"] = str(len(blob))
-        info["size"] = len(data)
-        info["integrity"] = integrity_of(data)
-        blob.extend(data)
+    # 3) mod.json（版本号以 version.txt 为准）
+    with open(os.path.join(out, "mod.json"), "w", encoding="utf-8") as f:
+        json.dump(man, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
-    # 4) 拼回目录树（保持原顺序 + 新增文件追加到末尾）
-    tree = {}
-
-    def node_for(path_parts):
-        cur = tree
-        for p in path_parts[:-1]:
-            nxt = cur.get(p)
-            if nxt is None:
-                nxt = cur[p] = {"files": {}}
-            cur = nxt["files"]
-        return cur
-
-    for rel in order:
-        parts = rel.split("/")
-        parent = node_for(parts)
-        parent[parts[-1]] = files[rel]["info"]
-
-    payload = json.dumps({"files": tree}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    json_len = len(payload)
-    header_size = align4(8 + json_len)
-    pad = header_size - 8 - json_len
-    head = struct.pack("<IIII", 4, header_size, header_size - 4, json_len) + payload + b"\x00" * pad
-
-    os.makedirs(BUILD_DIR, exist_ok=True)
-    with open(OUT, "wb") as f:
-        f.write(head)
-        f.write(bytes(blob))
-
-    # 5) 自检：重新读一遍，确认能解析、关键文件在、内容正确
-    h2, raw2, ds2 = read_asar(OUT)
-    check = {}
-    for rel, info, _ in flatten(h2):
-        if not info.get("unpacked"):
-            off, size = int(info["offset"]), int(info["size"])
-            check[rel] = raw2[ds2 + off: ds2 + off + size]
-    assert BLOCK_BEGIN in check["web/index.html"].decode("utf-8"), "注入失败"
-    for rel in MOD_JS + MOD_CSS:
-        assert ("web/" + rel) in check, "缺少 " + rel
-    assert len(check) == len([r for r in order if not files[r]["info"].get("unpacked")]), "文件数不一致"
-
-    print("已生成 %s（%.1f MB，文件 %d 个，新增 %d 个）"
-          % (OUT, os.path.getsize(OUT) / 1048576.0, len(check), len(added)))
-    for a in added:
-        print("  + " + a)
-    return OUT
+    check(out, man)
+    print("已生成：%s（v%s，%d 个脚本 + 1 个样式）" % (out, ver, len(MOD_JS)))
+    return out, man
 
 
-def install():
-    build()
-    if not os.path.exists(ASAR_BAK):
-        shutil.copy2(ASAR, ASAR_BAK)
-        print("已备份原始 app.asar → %s" % ASAR_BAK)
+def check(out, man):
+    """构建自检：脚本齐全、mod.json 合法、没有残留的旧命名空间。"""
+    for rel in man.get("lateScripts") or []:
+        p = os.path.join(out, rel)
+        if not os.path.isfile(p):
+            raise SystemExit("自检失败：lateScripts 里的 %s 不存在" % rel)
+    with open(os.path.join(out, "mod.json"), "r", encoding="utf-8") as f:
+        again = json.load(f)
+    if again.get("version") != man.get("version"):
+        raise SystemExit("自检失败：mod.json 版本没写进去")
+    for name in MOD_JS:
+        with open(os.path.join(out, "scripts", name), "r", encoding="utf-8") as f:
+            text = f.read()
+        if "window.IAP =" in text or "window.IAP=" in text:
+            raise SystemExit("自检失败：%s 还在占用 window.IAP（3.0.0 起那是官方接口，必须用 IAPM）" % name)
+        if "window.IAPM" not in text:
+            raise SystemExit("自检失败：%s 没找到 window.IAPM 命名空间" % name)
+    if len(again["lateScripts"]) != len(MOD_JS) + 1:
+        raise SystemExit("自检失败：lateScripts 数量对不上（应为脚本数 + 样式）")
+
+
+def install(out, man):
+    dest = os.path.join(mods_dir(), man["id"])
+    if os.path.isdir(dest):
+        shutil.rmtree(dest)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copytree(out, dest)
+    print("已安装：%s" % dest)
+    print("提示：模组在游戏开机时加载，装完要重启游戏才生效。")
+    return dest
+
+
+def uninstall(mod_id):
+    dest = os.path.join(mods_dir(), mod_id)
+    if not os.path.isdir(dest):
+        print("没有安装：%s" % dest)
+        return False
+    shutil.rmtree(dest)
+    print("已卸载：%s" % dest)
+    return True
+
+
+def main():
+    args = sys.argv[1:]
+    out, man = build()
+    if "--install" in args:
+        install(out, man)
+    elif "--uninstall" in args:
+        uninstall(man["id"])
     else:
-        print("备份已存在，保留不动：%s" % ASAR_BAK)
-    shutil.copy2(OUT, ASAR)
-    print("已安装到 %s" % ASAR)
-
-
-def restore():
-    if not os.path.exists(ASAR_BAK):
-        raise SystemExit("没有找到备份 %s，无法还原" % ASAR_BAK)
-    shutil.copy2(ASAR_BAK, ASAR)
-    print("已还原原始 app.asar")
+        print("只构建，没安装。加 --install 装到存档目录的 mods/ 里。")
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else ""
-    if arg == "--install":
-        install()
-    elif arg == "--restore":
-        restore()
-    else:
-        build()
+    main()

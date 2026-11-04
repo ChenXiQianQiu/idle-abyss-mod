@@ -8,7 +8,7 @@
    物品等级封顶 100、巅峰封顶 3000；旧规则存档没有阶段上限。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
 
   const ROWS = [
     {

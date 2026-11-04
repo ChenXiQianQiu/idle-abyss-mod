@@ -22,7 +22,7 @@
    覆盖不了，只能调用，所以「自选铭文」是在 abyssEtch 返回后改 opt。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G;
+  const NS = window.IAPM, G = NS.G;
 
   const ET = (NS.etch = {
     ok: !!NS.prefs.abEtchOk,
@@ -122,7 +122,7 @@
   ET.hookCode = function () { return (ET.hooked.etch ? 1 : 0) + '' + (ET.hooked.corrupt ? 1 : 0) + '' + (ET.hooked.caff ? 1 : 0); };
   /* 启动 1.2 秒后往主进程日志写一行（正式包没有 DevTools，只能靠这行确认钩子活着） */
   setTimeout(function () {
-    try { reportErr('[IAP] 蚀刻钩子 ' + ET.hookCode() + (ET.hookCode() === '111' ? ' 全部挂上' : ' 有缺失')); } catch (e) { }
+    try { reportErr('[IAPM] 蚀刻钩子 ' + ET.hookCode() + (ET.hookCode() === '111' ? ' 全部挂上' : ' 有缺失')); } catch (e) { }
   }, 1200);
 
   /* ---------- 操作 ---------- */

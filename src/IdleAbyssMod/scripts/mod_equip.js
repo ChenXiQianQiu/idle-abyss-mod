@@ -14,7 +14,7 @@
    所有区间都直接调用游戏的公式，改出来的装备和正常掉落同规格。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const EQ = (NS.eq = {
     sel: null, src: 'all', q: '',
     /* 生成器的表单状态。放在这里而不是只读 DOM：重绘（选装备 / 换品质 / 生成完）
@@ -533,7 +533,7 @@
       f.q = q;
     });
     /* 读档时游戏自己也会走这一步（raid_items.js:360），所以这里调用完全一致 */
-    if (typeof raidItemFix === 'function') { try { raidItemFix(it); } catch (e) { console.warn('[IAP] raidItemFix 失败', e); } }
+    if (typeof raidItemFix === 'function') { try { raidItemFix(it); } catch (e) { console.warn('[IAPM] raidItemFix 失败', e); } }
   }
 
   /* 点选装备：只换右侧编辑器 + 切换列表的选中态，不重建列表 DOM。
@@ -784,7 +784,7 @@
     const S = G.S;
     if ((S.inv || []).length >= LIM.inv()) { NS.toast('背包已满（' + LIM.inv() + ' 格），先清一点', true); return; }
     let it = null;
-    try { it = rollItem(g.ilvl, g.r, g.t, S.cls); } catch (e) { console.warn('[IAP] rollItem 失败', e); }
+    try { it = rollItem(g.ilvl, g.r, g.t, S.cls); } catch (e) { console.warn('[IAPM] rollItem 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
     S.inv.push(it);
     done(it, '背包');
@@ -796,7 +796,7 @@
     if (typeof raidRollItem !== 'function') { NS.toast('找不到 raidRollItem，生成器不可用', true); return; }
     if (!g.rid) { NS.toast('王庭掉落表是空的', true); return; }
     let it = null;
-    try { it = raidRollItem(g.rid, g.diff, Math.random, { radiant: !!g.radiant }); } catch (e) { console.warn('[IAP] raidRollItem 失败', e); }
+    try { it = raidRollItem(g.rid, g.diff, Math.random, { radiant: !!g.radiant }); } catch (e) { console.warn('[IAPM] raidRollItem 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
     done(it, putItem(it));
   }
@@ -806,7 +806,7 @@
   function genOdd(g) {
     if (typeof rollOddity !== 'function') { NS.toast('找不到 rollOddity，生成器不可用', true); return; }
     let it = null;
-    try { it = rollOddity(g.odd, g.ilvl); } catch (e) { console.warn('[IAP] rollOddity 失败', e); }
+    try { it = rollOddity(g.odd, g.ilvl); } catch (e) { console.warn('[IAPM] rollOddity 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
     /* 账号唯一性登记：不写的话本局游戏还以为没拥有，会再掉一件同样的 */
     try { if (typeof oddClaim === 'function') oddClaim(it); } catch (e) { }
@@ -839,7 +839,7 @@
       return;
     }
     let it = null;
-    try { it = mythRollItem(k, S.cls); } catch (e) { console.warn('[IAP] mythRollItem 失败', e); }
+    try { it = mythRollItem(k, S.cls); } catch (e) { console.warn('[IAPM] mythRollItem 失败', e); }
     if (!it) { NS.toast('生成失败', true); return; }
     const first = !acc.own[k];
     acc.own[k] = true;

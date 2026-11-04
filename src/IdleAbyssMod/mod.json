@@ -1,0 +1,27 @@
+{
+  "id": "chenxi_abyss_debug",
+  "name": { "zh": "深渊调试台", "en": "Abyss Debug Console" },
+  "version": "1.0.0",
+  "api": 3,
+  "author": "ChenXiQianQiu",
+  "description": {
+    "zh": "游戏内调试面板（F1）：改装备与词缀、发资源、开团本 / 终焉 / 秘境 / 深渊的开关。护肝类 mod，改的是本机存档，联机时建议先关掉。",
+    "en": "In-game debug console (F1): edit gear and affixes, grant resources, toggle raid / ultra / rift / abyss switches. A quality-of-life mod; it only touches your local save, turn it off before multiplayer."
+  },
+  "lateScripts": [
+    "scripts/mod_styles.js",
+    "scripts/mod_util.js",
+    "scripts/mod_resources.js",
+    "scripts/mod_equip.js",
+    "scripts/mod_etch.js",
+    "scripts/mod_pearl.js",
+    "scripts/mod_progress.js",
+    "scripts/mod_raid.js",
+    "scripts/mod_ultra.js",
+    "scripts/mod_camp.js",
+    "scripts/mod_myth.js",
+    "scripts/mod_abyss.js",
+    "scripts/mod_panel.js",
+    "scripts/mod_boot.js"
+  ]
+}

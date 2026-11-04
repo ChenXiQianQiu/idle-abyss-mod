@@ -45,7 +45,7 @@
    开关关掉时原样转发给保存下来的原函数，行为与未装 Mod 完全一致。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const R = (NS.raid = {
     mustDrop: !!NS.prefs.raidMustDrop,
     noCd: !!NS.prefs.raidNoCd,
@@ -152,7 +152,7 @@
       const pick = relics[Math.min(relics.length - 1, Math.floor(rr() * relics.length))];
       const it = raidRollItem(pick, diff, rr);
       if (it) out[out.length - 1] = it;
-    } catch (e) { console.warn('[IAP] 稀世替换失败', e); }
+    } catch (e) { console.warn('[IAPM] 稀世替换失败', e); }
   }
 
   /* 掉落池。onlyOwn 打开时只留本职业装备与通用首饰（cls 为 null）。
@@ -178,7 +178,7 @@
       const pick = table[Math.min(table.length - 1, Math.floor(rr() * table.length))];
       if (!pick || typeof raidRollItem !== 'function') return null;
       return raidRollItem(pick.id, diff, rr);
-    } catch (e) { console.warn('[IAP] 补掉落失败', e); return null; }
+    } catch (e) { console.warn('[IAPM] 补掉落失败', e); return null; }
   }
 
   /* 把别职业的装备换成同部位、本职业的版本。
@@ -196,7 +196,7 @@
       /* 辉耀状态沿用原来那件，避免换个职业白送（或白扣）一次 radiant 判定 */
       const out = raidRollItem(alt.id, diff || it.raidDiff, asRng(rng), { radiant: !!it.radiant });
       return out || it;
-    } catch (e) { console.warn('[IAP] 换成本职业装备失败', e); return it; }
+    } catch (e) { console.warn('[IAPM] 换成本职业装备失败', e); return it; }
   }
 
   hookUseCD(); hookRoll();

@@ -20,7 +20,7 @@
    不碰战斗：深渊挑战本身还是走游戏的 abyss.js，这里只读写它的存档字段。
    ============================================================ */
 (function () {
-  const NS = window.IAP, G = NS.G, F = NS.fn;
+  const NS = window.IAPM, G = NS.G, F = NS.fn;
   const AB = (NS.abyss = { open: '' });        // open = 展开的誓约分类（空 = 全展开）
 
   const CAT_NAME = { horde: '敌群', lord: '首领', field: '环境', self: '自身' };
@@ -189,7 +189,7 @@
     if (!AB.logged) {
       AB.logged = true;
       try {
-        reportErr(`[IAP] 深渊页 ok: tags=${(G.ABYSS_TAGS || []).length} best=${Number(a.best) || 0} ` +
+        reportErr(`[IAPM] 深渊页 ok: tags=${(G.ABYSS_TAGS || []).length} best=${Number(a.best) || 0} ` +
           `heart=${Number(a.heart) || 0} ward=${Number(a.ward) || 0} tear=${Number(a.tear) || 0} ` +
           `etch=${NS.etch && NS.etch.hookCode ? NS.etch.hookCode() : '---'}`);
       } catch (e) { }

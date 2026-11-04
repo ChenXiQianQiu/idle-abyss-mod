@@ -2,7 +2,9 @@
 
 - 始终使用中文回答；新增注释、运行日志、配置描述、文档和提交说明默认使用中文。
 - PowerShell 读取文件时必须显式使用 UTF-8 编码，例如 `Get-Content -Encoding utf8`，避免脚本末尾中文字符串被按本地编码解成乱码。
-- 不直接修改游戏本体；`resources/app.asar` 只通过 `scripts/mod_build.py` 由 Mod 源码重建，解包结果（`.tools/asar_extracted/`）只作为阅读和定位注入点的参考。
+- 不直接修改游戏本体；本 Mod 是**官方模组包**（游戏 3.0.0 起的模组系统），只写
+  `%APPDATA%\IdleAbyssPrincesses\mods\<id>\`，**不碰 `resources/app.asar`**。
+  解包结果（`.tools/`）只作为阅读和定位游戏代码的参考。
 - 新增或修改 Mod 代码统一放在 `src/`，辅助脚本放在 `scripts/`，说明文档放在仓库根目录或 `docs/`。
 - `.tools/`、`build/`、游戏本体（exe / dll / pak / `resources/`）、构建产物、日志和缓存都不得提交，见 `.gitignore`。
 - 每次修改后检查 `git status --short --ignored`，确认只跟踪本次相关代码、脚本和文档。
@@ -13,14 +15,15 @@
 ```
 Idle Abyss Princesses/
 ├─ AGENTS.md                 本文件
-├─ src/IdleAbyssMod/         Mod 源码（唯一需要手写的部分）
-│  ├─ version.txt            Mod 版本号
-│  └─ web/
-│     ├─ js/mod/             注入到 web/js/mod/ 的脚本，加载顺序见 mod_build.py
-│     └─ css/                注入到 web/css/ 的样式
+├─ src/IdleAbyssMod/         Mod 源码（唯一需要手写的部分，内容就是模组文件夹）
+│  ├─ version.txt            Mod 版本号（构建时写进 mod.json）
+│  ├─ mod.json               模组清单：id / api 3 / lateScripts 加载顺序
+│  ├─ scripts/               模组脚本，加载顺序见 mod_build.py 的 MOD_JS
+│  └─ styles/                面板样式（构建时转成内联 <style> 的 mod_styles.js）
 ├─ scripts/
-│  ├─ asar_extract.py        解包 app.asar（纯 Python）
-│  └─ mod_build.py           构建 / 安装 / 还原
+│  ├─ asar_extract.py        解包 app.asar（纯 Python，只用于读游戏代码）
+│  ├─ mod_build.py           构建 / 安装 / 卸载模组包
+│  └─ mod_pack.py            打分享包
 ├─ docs/                     代码索引与模块说明
 ├─ share/                    对外说明（Mod修改内容说明.md）
 ├─ .tools/                   解包结果与开发期小工具（不入库）
@@ -40,10 +43,25 @@ Idle Abyss Princesses/
 因此 Mod 的注入方式固定为：**解包 asar → 覆盖 Mod 文件 → 在 `index.html` 的 `</body>` 前挂上
 Mod 脚本 → 重新打包**。Mod 脚本必须放在 `main.js` 之后加载（那时 `load()` 已跑完，`S` 可用）。
 
+**游戏 3.0.0 起改用官方模组系统**（包内 `docs/MODDING.md` 是权威文档）：
+
+- 模组 = 一个文件夹：`mod.json`（`"api": 3`）+ `scripts/`，放进
+  `%APPDATA%\IdleAbyssPrincesses\mods\<id>\`，游戏开机扫描加载；
+- `lateScripts` 里的脚本在**游戏脚本全部加载完、读档之前**执行，能包装全局函数、能读所有表，
+  时机和原来注入到 `</body>` 基本一致；
+- **命名空间必须是 `window.IAPM`**：游戏在 `web/js/mod_api.js:262` 有顶层 `const IAP`
+  （官方模组接口），同名会被词法绑定盖住；
+- 官方还提供 `IAP.rules`（规则点：`raidWeekly` / `enchantLock` / `etchTries` / `tearCost` /
+  `corFreeze` / `mythTakeCost` / `ultraWeekly` / `timeScale`）、`IAP.act`（附魔 / 蚀刻 / 探骊 /
+  熔炉等按玩家按钮那条路走的操作）、`IAP.batch`、`IAP.ui.addPanel / addTopButton / addSection /
+  hotkey`。改规则点会暂停 Steam 成就（游戏自己的规则）；
+- 页面 CSP 的 `style-src` 不含 `iapmod:`，模组样式只能注入内联 `<style>`
+  （构建时把 `styles/mod_panel.css` 转成 `scripts/mod_styles.js`）。
+
 写 Mod 代码时的硬性约定：
 
-- 每个文件都用 IIFE 包起来，只往 `window.IAP` 上挂东西，**不要**声明新的全局 `const`
-  （会和游戏同名全局冲突，例如 `S`、`A`、`R`、`affRange`）。
+- 每个文件都用 IIFE 包起来，只往 `window.IAPM` 上挂东西，**不要**声明新的全局 `const`
+  （会和游戏同名全局冲突，例如 `S`、`A`、`R`、`affRange`、以及官方接口 `IAP`）。
 - 访问游戏数据一律通过 `NS.G`（getter 活引用）和 `NS.fn`（函数包装），
   不要缓存 `S` / `A` 的对象引用——读档、换角色、重铸都会整体替换它们。
 - 每次改动后走 `NS.apply(full)`：`refreshStats` → `markAll` → `save`。
@@ -53,22 +71,28 @@ Mod 脚本 → 重新打包**。Mod 脚本必须放在 `main.js` 之后加载（
 ## 构建与安装
 
 ```bash
-python scripts/mod_build.py            # 只生成 build/app.asar
-python scripts/mod_build.py --install  # 生成并安装（首次自动备份 app.asar.orig）
-python scripts/mod_build.py --restore  # 还原原版
+python scripts/mod_build.py              # 只生成 build/mods/chenxi_abyss_debug/
+python scripts/mod_build.py --install    # 生成并装到 %APPDATA%\IdleAbyssPrincesses\mods\
+python scripts/mod_build.py --uninstall  # 从存档目录删掉
+python scripts/mod_pack.py               # 打分享包 dist/深渊调试台-v<版本>-分享包.zip
 ```
 
-- 构建脚本会自检：重新读一遍产物、确认 `index.html` 里有注入块、确认每个 Mod 文件都在。
-- 新增 Mod 脚本文件后，必须同步把路径加进 `mod_build.py` 的 `MOD_JS`（顺序即依赖顺序）。
-- 安装完成后必须**同步复制到游戏目录并实际启动验证**（Steam 校验或游戏更新会覆盖 `app.asar`）。
+- 构建脚本会自检：`lateScripts` 里每个文件都在、`mod.json` 版本写对了、没有残留的 `window.IAP`。
+- 新增 Mod 脚本文件后，必须同步把文件名加进 `mod_build.py` 的 `MOD_JS`（顺序即依赖顺序）
+  和 `src/IdleAbyssMod/mod.json` 的 `lateScripts`（样式固定排第一）。
+- 安装完成后必须**重启游戏实际验证**：日志里要出现
+  `模组：找到 1 个：chenxi_abyss_debug@local` 和 `[IAPM] ... loaded, official=true`。
 
 ## 调试与验证
 
 - 游戏必须**通过 Steam 启动**（`steam://rungameid/5335850`）。直接运行 exe 时
   `steamworks.init()` 会失败并静默退出，日志里连「启动完成」都不会出现——这不是 Mod 的问题。
 - 主进程日志：`%APPDATA%/IdleAbyssPrincesses/logs/main.log`。
-  Mod 启动时会写一行 `[IAP] 深渊调试台 vX.Y.Z loaded`，是判断「Mod 有没有装进去」的第一手证据。
+  Mod 启动时会写一行 `[IAPM] 深渊调试台 vX.Y.Z loaded, panel=true, official=true`，
+  是判断「Mod 有没有被加载」的第一手证据；模组扫描结果在同一份日志里（`模组：找到 N 个：...`）。
 - 渲染层报错也会经 `reportErr` 落到同一份日志里。
+- 模组调试：Steam 启动选项加 `--devtools` 开开发者工具；`--no-mods` 强制不加载模组；
+  「设置 → 模组」里能看到每个模组的加载错误。
 - `.tools/` 下的开发期小工具（不入库）：
   - `shot.mjs`：用 CDP 驱动无头 Edge 执行表达式并截图（配合本地 http 服务测 `web/` 页面）；
   - `dev_reload.py`：构建 → 解包到 `.tools/test_extract` → 生成带测试角色的 `test.html`；
