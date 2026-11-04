@@ -217,6 +217,13 @@ select.iap-in { text-align: left; }
 .iap-skrow .iap-ix { flex: 0 0 16px; text-align: right; color: var(--mute, #6a5e52); font-size: 10px; }
 .iap-skrow select.iap-in { flex: 1 1 auto; width: auto; min-width: 0; }
 .iap-skrow .iap-btn { flex: 0 0 auto; }
+/* 灵技右边那条的数值（按当前等级 / 资质 / 成长算出来的），固定宽度免得各行数字左右跳 */
+.iap-skval { flex: 0 0 58px; text-align: right; color: #8a7a64; font-size: 10px; font-variant-numeric: tabular-nums; }
+/* 秘技行下面那行说明（族的名字 + yaoMiDesc 的原文），缩进对齐到下拉框 */
+.iap-skrow.mi { border-bottom: 0; }
+.iap-skdesc { padding: 0 8px 4px 30px; color: var(--mute, #6a5e52); font-size: 10px; line-height: 12px;
+  border-bottom: 1px solid #1c161b; }
+.iap-skdesc b { color: #8a7a64; font-weight: normal; }
 /* 高级 / 普通 是个开关，开着时用鎏金底 */
 .iap-btn.on { background: #5a4214; color: var(--gold-hi, #f0d070); box-shadow: inset 1px 1px 0 #a8802a, inset -1px -1px 0 #2a1e08; }
 .iap-skadd { display: flex; align-items: center; gap: 6px; padding: 4px 8px 6px; flex-wrap: wrap; }

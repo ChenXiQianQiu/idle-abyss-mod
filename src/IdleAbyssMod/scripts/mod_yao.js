@@ -307,10 +307,35 @@
       const rows = all.filter(x => x.fam === f[0]);
       if (!rows.length) return '';
       return `<optgroup label="${f[1]}（${rows.length}）">` + rows.map(function (x) {
-        return `<option value="${x.k}"${x.k === curK ? ' selected' : ''}${used[x.k] ? ' disabled' : ''}>${NS.esc(x.n)}</option>`;
+        const fam = FAM_SHORT[x.fam] ? FAM_SHORT[x.fam] + ' ' : '';
+        return `<option value="${x.k}"${x.k === curK ? ' selected' : ''}${used[x.k] ? ' disabled' : ''}>${NS.esc(fam + x.n)}</option>`;
       }).join('') + '</optgroup>';
     }).join('');
   }
+
+  /* 秘技说明：直接问游戏要（yao_mi.js 的 yaoMiDesc / yaoMiFam），
+     诀那类还会带上缩放后的数值（yaoJueNum）。问不到就留空，不要编。 */
+  const miDesc = function (k) {
+    try { return typeof yaoMiDesc === 'function' ? String(yaoMiDesc(k) || '') : ''; } catch (e) { return ''; }
+  };
+  const miFamName = function (k) {
+    try {
+      const f = typeof yaoMiFam === 'function' ? yaoMiFam(k) : '';
+      return (typeof YAO_FAM_N === 'object' && YAO_FAM_N && YAO_FAM_N[f]) || '';
+    } catch (e) { return ''; }
+  };
+  const FAM_SHORT = {};
+  MI_FAM.forEach(function (f) { FAM_SHORT[f[0]] = f[1]; });
+  /* 一条灵技在某个等级上值多少（yao.js:424 yaoLine：王庭满值 × 档位 × 资质 × 成长）。
+     壶里的妖灵还没有底材，只能拿当前等级当参考；灵器上的器灵就用那件装备自己的 ilvl。 */
+  const lineVal = function (s, x, ilvl) {
+    try {
+      if (typeof yaoLine !== 'function') return '';
+      const L0 = yaoLine(x, s, ilvl);
+      const p = G.AFF && G.AFF[x.k] && G.AFF[x.k].p;
+      return '+' + L0.v + (p ? '%' : '');
+    } catch (e) { return ''; }
+  };
 
   /* ---------- 妖灵子页 ---------- */
   function spiritHTML() {
@@ -341,18 +366,28 @@
 
     /* 灵技 / 秘技混在同一个 sk 里，data-i 必须是数组下标（删 / 改都按它），
        显示用的序号分开数，免得出现「1 2 5 7」这种。 */
+    /* 灵技数值按哪个等级算：灵器用它自己的 ilvl，壶里的妖灵还没底材，用当前角色等级当参考 */
+    const refIlvl = t.src === 'ling'
+      ? (Number(t.it.ilvl) || Number(G.S && G.S.level) || 1)
+      : (Number(G.S && G.S.level) || 1);
+
     let sn = 0, mn = 0;
     const skRows = [], miRows = [];
     s.sk.forEach(function (x, i) {
       if (isMi(x.k)) {
         mn++;
-        miRows.push(`<div class="iap-skrow"><span class="iap-ix">${mn}</span>
+        const fam = miFamName(x.k), d = miDesc(x.k) || '（游戏没有给出这条秘技的说明）';
+        /* 说明本身就以族名开头时（元素化 / 状态化那几类）不再重复打一次族名 */
+        const badge = fam && d.indexOf(fam) !== 0 ? `<b>${NS.esc(fam)}</b> ` : '';
+        miRows.push(`<div class="iap-skrow mi"><span class="iap-ix">${mn}</span>
           <select class="iap-in" data-y="mi" data-i="${i}">${miOptions(s, x.k, i)}</select>
-          <button class="iap-btn ghost tiny" data-y="midel" data-i="${i}" title="删掉这条秘技">×</button></div>`);
+          <button class="iap-btn ghost tiny" data-y="midel" data-i="${i}" title="删掉这条秘技">×</button></div>`
+          + `<div class="iap-skdesc">${badge}${NS.esc(d)}</div>`);
       } else {
         sn++;
         skRows.push(`<div class="iap-skrow"><span class="iap-ix">${sn}</span>
           <select class="iap-in" data-y="sk" data-i="${i}">${skOptions(s, x.k, i)}</select>
+          <span class="iap-skval" title="按 ${refIlvl} 级、当前资质与成长算出来的数值">${lineVal(s, x, refIlvl)}</span>
           <button class="iap-btn tiny${x.hi ? ' on' : ''}" data-y="hi" data-i="${i}"
             title="普通 / 高级：高级的词条按高档掷，自带灵力也从 1% 变 2%">${x.hi ? '高级' : '普通'}</button>
           <button class="iap-btn ghost tiny" data-y="skdel" data-i="${i}" title="删掉这条灵技">×</button></div>`);
@@ -368,22 +403,24 @@
         <select class="iap-in" data-y="target">${targetOpts}</select></div>
     </div>
 
-    <div class="iap-sec"><div class="iap-sechd"><b>基础</b><small>品质与资质决定能做出多强的灵器</small></div>
+    <div class="iap-sec"><div class="iap-sechd"><b>基础</b><small>品质与资质决定能做出多强的灵器 · 孟婆汤重洗会把整只重掷，这里改的先别重洗</small></div>
       <div class="iap-fld"><div class="iap-lab"><b>种族</b><small>决定名字与五行；灵技池只是游戏掷点用的，这里不受限</small></div>
         <i class="iap-cd on">${WX_N[sp.wx] || '—'}</i>
         <select class="iap-in" data-y="sp">${spOpts}</select></div>
-      <div class="iap-fld"><div class="iap-lab"><b>品质</b><small>影响资质倍率、天生条数与超度得到的魂玉</small></div>
+      <div class="iap-fld"><div class="iap-lab"><b>品质</b><small>影响收妖掷点与回收，不影响灵器数值</small></div>
         <div class="iap-chips sub">${kindChips}</div>
         ${t.src === 'pot' ? `<button class="iap-btn${s.keep ? ' pri' : ''}" data-y="keep" title="收藏：批量超度不会动它">${s.keep ? '已收藏' : '收藏'}</button>` : ''}
       </div>
-      <div class="iap-fld"><div class="iap-lab"><b>资质</b><small>攻资 / 御资 / 灵资 · 300 ~ 3000 · 按词条类别各自取一项</small></div>
+      <div class="iap-fld"><div class="iap-lab"><b>资质</b><small>攻资 / 御资 / 灵资 · 300 ~ 3000</small></div>
         <div class="iap-apts">
           <label>攻</label><input class="iap-in" type="text" inputmode="numeric" spellcheck="false" data-y="apt" data-i="0" value="${int(s.apt[0])}">
           <label>御</label><input class="iap-in" type="text" inputmode="numeric" spellcheck="false" data-y="apt" data-i="1" value="${int(s.apt[1])}">
           <label>灵</label><input class="iap-in" type="text" inputmode="numeric" spellcheck="false" data-y="apt" data-i="2" value="${int(s.apt[2])}">
-        </div></div>
+        </div>
+        <button class="iap-btn" data-y="aptmax" title="三项资质都设成上限 3000">拉满</button></div>
       <div class="iap-fld"><div class="iap-lab"><b>成长</b><small>0.500 ~ 1.500 · 每条词条和灵力都乘它</small></div>
         <input class="iap-in sm" type="text" inputmode="decimal" spellcheck="false" data-y="g" value="${(Number(s.g) || 1).toFixed(3)}">
+        <button class="iap-btn" data-y="gmax" title="成长设成上限 1.500">拉满</button>
         <span class="iap-hint">按回车或点别处生效</span></div>
       <div class="iap-fld"><div class="iap-lab"><b>自带灵力</b><small>没有独立字段：Σ(普通 1% / 高级 2% / 秘技 1.5%) × 成长</small></div>
         <span class="iap-cur wide"><i data-pow>+${powOf(s).toFixed(1)}%</i></span>
@@ -391,7 +428,7 @@
         <button class="iap-btn" data-y="powset" title="按目标灵力反算成长（成长同时会改词条数值）">调成长</button></div>
     </div>
 
-    <div class="iap-sec"><div class="iap-sechd"><b>灵技</b><small>${sn} 条 · 高级 ${hiN} 条 · 加上秘技共 ${s.sk.length} / ${cap} 条 · 每条普通 +1% 高级 +2% 灵力</small></div>
+    <div class="iap-sec"><div class="iap-sechd"><b>灵技</b><small>${sn} 条 · 高级 ${hiN} 条 · 加上秘技共 ${s.sk.length} / ${cap} 条 · 右边数字按 ${refIlvl} 级算</small></div>
       ${skRows.join('') || '<div class="iap-empty sm">还没有灵技</div>'}
       <div class="iap-skadd"><button class="iap-btn" data-y="skadd">＋ 灵技</button>
         <span class="iap-hint">最多 ${cap} 条（带「骊龙之魂」时 18 条），同名不能重复</span></div>
@@ -449,10 +486,9 @@
       try { yaoItemFix(t.it); } catch (e) { console.warn('[IAPM] yaoItemFix', e); }
     }
     NS.apply(false);
-    if (soft) { if (warn.length) NS.toast(warn.join(' · '), true); return; }
-    NS.panel.refresh();
-    if (msg) NS.toast(msg);
-    else if (warn.length) NS.toast(warn.join(' · '), true);
+    if (warn.length) NS.toast(warn.join(' · '), true);
+    else if (msg) NS.toast(msg);
+    if (!soft) NS.panel.refresh();
   }
 
   /* ---------- 交互 ---------- */
@@ -476,6 +512,22 @@
       if (y === 'keep') {
         if (s.keep) delete s.keep; else s.keep = 1;
         commit(t, s.keep ? '已收藏' : '取消收藏'); return;
+      }
+      /* 一键拉满：资质三项都到上限 3000 / 成长到 1.500。
+         走 soft 提交（不重建 DOM），顺手把输入框里的数字改掉，免得显示的还是旧值。 */
+      if (y === 'aptmax') {
+        s.apt = [3000, 3000, 3000];
+        commit(t, '资质拉满：攻 / 御 / 灵 都是 3000', true);
+        const boxes = root.querySelectorAll('[data-y="apt"]');
+        for (let n = 0; n < boxes.length; n++) boxes[n].value = '3000';
+        syncPow(root); return;
+      }
+      if (y === 'gmax') {
+        s.g = 1.5;
+        commit(t, '成长拉满：1.500 · 灵力 +' + powOf(s).toFixed(1) + '%', true);
+        const box = root.querySelector('[data-y="g"]');
+        if (box) box.value = '1.500';
+        syncPow(root); return;
       }
       if (y === 'hi') {
         if (s.sk[i] && !isMi(s.sk[i].k)) s.sk[i].hi = s.sk[i].hi ? 0 : 1;
