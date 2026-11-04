@@ -9,8 +9,8 @@
   "api": 3,
   "author": "ChenXiQianQiu",
   "description": {
-    "zh": "游戏内护肝面板（顶栏「护肝」按钮或 F1）：改装备与词缀、发资源、开团本 / 终焉 / 秘境的开关。护肝类 mod，改的是本机存档，联机时建议先关掉。",
-    "en": "In-game QoL console (top-bar button or F1): edit gear and affixes, grant resources, toggle raid / ultra / rift switches. A quality-of-life mod; it only touches your local save, turn it off before multiplayer."
+    "zh": "游戏内护肝面板：顶栏「护肝」按钮或 F1 打开，改动即时写入存档。\n\n资源 / 装备 / 进度 / 团本 / 终焉 / 营地 / 秘境：发资源、改装备与词缀（含「词缀全满」）、深渊蚀刻与骊龙宝珠「探骊」、单人必定掉落、派遣立即完成、秘境高层必定神兽等。\n\n炼妖壶（需要 DLC《炼妖壶》）：改魂玉 / 朱砂 / 孟婆汤 / 残页 / 妖魄；逐只改妖灵的种族·品质·资质·成长·灵技·秘技（资质与成长可一键拉满）；922 条秘技 + 33 条词缀的效果图鉴；「未收录必收」——百妖谱里还没有的种族，击杀必定收进壶。\n\n安装：解压后双击 安装.bat，重启游戏即可；不需要 Python，不改游戏文件。卸载双击 卸载.bat。\n含代码模组，只读写本机存档，联机时建议先关掉；有规则开关偏离默认值时 Steam 成就暂停（游戏自己的规则）。",
+    "en": "In-game QoL console for Idle Abyss Princesses. Open it with the QoL button in the top bar or press F1; every change is written to your save immediately.\n\nResources / Gear / Progress / Raid / Ultra / Camp / Rift: grant resources, edit gear and affixes (including \"max all affixes\"), Abyss etching and the pearl reroll, solo guaranteed drops, instant camp dispatch, guaranteed mythic beasts at high rift floors.\n\nAlchemy Pot (requires the Alchemy Pot DLC): edit jade / cinnabar / soup / pages / essences; edit any spirit's species, rarity, aptitude, growth, skills and secret arts (one-click max aptitude and growth); a searchable codex of all 922 secret arts; first-encounter capture - any species not yet in your bestiary is caught on kill.\n\nInstall: unzip, run 安装.bat, restart the game. No Python, no game files modified. Uninstall with 卸载.bat.\nThis is a code mod: it only reads/writes your local save. Turn it off before multiplayer. If a rule switch deviates from the default, Steam achievements pause (the game's own rule)."
   },
   "lateScripts": [
     "scripts/mod_styles.js",
