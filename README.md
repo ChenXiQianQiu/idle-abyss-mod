@@ -1,7 +1,7 @@
 # 深渊护肝台 · Idle Abyss Mod
 
 《深渊放置姬 / Idle Abyss Princesses》的游戏内护肝面板 Mod，按 **F1** 打开 / 关闭，
-所有改动即时写入存档。当前版本 **v1.6.2**，适配游戏 **3.0.0**。
+所有改动即时写入存档。当前版本 **v1.6.1**，适配游戏 **3.0.0**。
 
 v1.0.0 起改用游戏**自带的官方模组系统**（3.0.0 新增）：模组就是一个文件夹，放进
 `%APPDATA%\IdleAbyssPrincesses\mods\` 就生效，**不再修改 `resources/app.asar`**，
@@ -13,7 +13,7 @@ v1.0.0 起改用游戏**自带的官方模组系统**（3.0.0 新增）：模组
 
 ### 方式一：下载分享包（推荐）
 
-到 [Releases](../../releases) 下载 `IdleAbyssMod-v1.6.2-share.zip`，解压到任意位置，
+到 [Releases](../../releases) 下载 `IdleAbyssMod-v1.6.1-share.zip`，解压到任意位置，
 双击 `安装.bat` —— 它会把模组复制到 `%APPDATA%\IdleAbyssPrincesses\mods\`，
 **第一次装模组、还没有 `mods` 文件夹的话它会自己新建一个**。
 重启游戏，进角色界面后按 **F1**（或点顶栏的「护肝」按钮）。
