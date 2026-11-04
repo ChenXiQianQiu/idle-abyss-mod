@@ -139,9 +139,7 @@
     if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     if (!YA()) return `<div class="iap-empty bad">炼妖壶的账号档读不出来（A.yao 结构异常），先回游戏里打开一次炼妖壶。</div>`;
-    return `<div class="iap-note">这一页只在拥有 <b>DLC《炼妖壶》</b> 时出现，只放<b>游戏里做不到的事</b>：
-      改魂玉 / 朱砂 / 孟婆汤、补残页与妖魄。收妖过滤、批量超度与炼妖、灵器、幽冥进度都在游戏自己的
-      炼妖壶窗口里，这里不重复；灵器的强化等级请到<b>装备页</b>改。</div>`
+    return `<div class="iap-note">这一页只在拥有 <b>DLC《炼妖壶》</b> 时出现。</div>`
       + `<div class="iap-sec"><div class="iap-sechd"><b>资源</b><small>账号共用 · 改完立刻写入存档，可填 1.5万 / 3k 这种简写</small></div>`
       + ROWS.map(rowHTML).join('') + '</div>'
       + pageHTML() + essenceHTML();
