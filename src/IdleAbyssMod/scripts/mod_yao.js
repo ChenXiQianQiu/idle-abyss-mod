@@ -160,9 +160,11 @@
      状态只有两个模块级变量（sel 选中的目标、view 子页签、fam 加秘技时的类别），
      因为面板每次刷新都会把整块 DOM 重建，状态不能放在 DOM 上。
      ============================================================ */
-  let view = 'res';                                  // res / sp
+  let view = 'res';                                  // res / sp / dex
   let sel = { src: 'pot', id: '' };                  // 当前编辑的目标
   let fam = 'el';                                    // 「＋ 秘技」用哪个族
+  let dex = 'all';                                   // 图鉴当前分类（all / el / as / … / aff）
+  let dexQ = '';                                     // 图鉴搜索词（只做 DOM 过滤，不进 render）
 
   const KIND_N = ['野生', '幼灵', '异色'];
   const WX_N = ['木行', '火行', '土行', '金行', '水行'];
@@ -442,17 +444,98 @@
     </div>`;
   }
 
+  /* ============================================================
+     图鉴子页：把 922 条秘技和 30 多条灵技词缀的效果一次列全
+     ------------------------------------------------------------
+     说明文字全部来自游戏自己的 yaoMiDesc()（诀那类还带 yaoJueNum() 的数值），
+     不自己编。922 行一起渲染，所以：
+       · 秘技全表算一次就缓存（dexCache），切分类不重算；
+       · 搜索只在已经渲染出来的行上做 display 切换，不重新 render（否则每敲一个字
+         都要重建 922 个节点，还会丢焦点）。
+     ============================================================ */
+  let dexCache = null;
+  function dexCatalog() {
+    if (dexCache) return dexCache;
+    return (dexCache = miOptionsList().map(function (x) {
+      return { k: x.k, n: x.n, fam: x.fam, d: miDesc(x.k) || '（游戏没有给出这条秘技的说明）' };
+    }));
+  }
+  /* 灵技（词缀）：名称 + 类别 + 上限 + 一个「标准妖灵」的参考值
+     （资质 1300、成长 1.00、普通档、当前等级），方便横向比大小。 */
+  const AFF_CAT = { pri: '主属性', off: '进攻', def: '生存', util: '功能' };
+  function affCatalog() {
+    const AFF = G.AFF || {};
+    const lvl = Math.max(1, Number(G.S && G.S.level) || 1);
+    return Object.keys(AFF).filter(k => k !== 'ele').map(function (k) {
+      const A = AFF[k];
+      let v = '';
+      try {
+        if (typeof yaoLine === 'function') v = yaoLine({ k: k, hi: 0 }, { apt: [1300, 1300, 1300], g: 1 }, lvl).v;
+      } catch (e) { v = ''; }
+      return { k: k, n: A.n || k, cat: AFF_CAT[A.cat] || '其它', cap: A.cap, p: !!A.p, v: v };
+    });
+  }
+
+  function dexRow(srch, head, desc) {
+    return `<div class="iap-dexrow" data-s="${NS.esc(srch.toLowerCase())}">`
+      + `<div class="iap-dexh">${head}</div>`
+      + (desc ? `<div class="iap-dexd">${NS.esc(desc)}</div>` : '') + '</div>';
+  }
+
+  function dexHTML() {
+    const miAll = dexCatalog(), affs = affCatalog();
+    const cnt = {};
+    miAll.forEach(function (x) { cnt[x.fam] = (cnt[x.fam] || 0) + 1; });
+
+    const chips = [`<button class="iap-chip${dex === 'all' ? ' on' : ''}" data-y="dex" data-v="all">全部 ${miAll.length}</button>`]
+      .concat(MI_FAM.map(function (f) {
+        const n = cnt[f[0]] || 0;
+        return `<button class="iap-chip${dex === f[0] ? ' on' : ''}" data-y="dex" data-v="${f[0]}"${n ? '' : ' disabled'}>${f[1]} ${n}</button>`;
+      }))
+      .concat([`<button class="iap-chip${dex === 'aff' ? ' on' : ''}" data-y="dex" data-v="aff">灵技（词缀） ${affs.length}</button>`])
+      .join('');
+
+    let rows = '';
+    if (dex === 'aff') {
+      rows = affs.map(function (x) {
+        const head = `<b>${NS.esc(x.n)}</b><i>${x.cat}</i>`
+          + `<em>${x.v === '' ? '—' : '+' + x.v + (x.p ? '%' : '')}${x.cap ? ' · 上限 ' + x.cap + (x.p ? '%' : '') : ''}</em>`;
+        return dexRow(x.n + ' ' + x.cat + ' ' + x.k, head, '');
+      }).join('');
+    } else {
+      const list = dex === 'all' ? miAll : miAll.filter(x => x.fam === dex);
+      rows = list.map(function (x) {
+        const head = `<b>${NS.esc(x.n)}</b><i>${NS.esc(FAM_SHORT[x.fam] || '')}</i>`;
+        return dexRow((FAM_SHORT[x.fam] || '') + ' ' + x.n + ' ' + x.d, head, x.d);
+      }).join('');
+    }
+
+    const lvl = Math.max(1, Number(G.S && G.S.level) || 1);
+    const note = dex === 'aff'
+      ? `右边数字是「标准妖灵」在 ${lvl} 级、资质 1300、成长 1.00、普通档下的值（yaoLine），只能横向比大小；实际数值在妖灵页每行右边。`
+      : `全部 ${miAll.length} 条秘技，说明取自游戏 yaoMiDesc()。分类按钮上的数字是条数。`;
+
+    return `<div class="iap-sec"><div class="iap-sechd"><b>图鉴</b><small>${note}</small></div>
+      <div class="iap-chips">${chips}</div>
+      <div class="iap-fld"><div class="iap-lab"><b>搜索</b><small>名字和效果里都能搜</small></div>
+        <input class="iap-in" type="text" spellcheck="false" data-y="dexq" value="${NS.esc(dexQ)}" placeholder="护盾 / 暴击 / 流血 / 契">
+        <span class="iap-cur wide iap-dexn"><i data-dexn>0</i></span></div>
+      </div>
+      <div class="iap-dex" data-dexlist>${rows}</div>`;
+  }
+
   /* ---------- 页 ---------- */
   function render() {
     const S = G.S, A = G.A;
     if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     if (!YA()) return `<div class="iap-empty bad">炼妖壶的账号档读不出来（A.yao 结构异常），先回游戏里打开一次炼妖壶。</div>`;
-    const chips = `<div class="iap-chips sub">` + [['res', '资源'], ['sp', '妖灵']].map(function (v) {
+    const chips = `<div class="iap-chips sub">` + [['res', '资源'], ['sp', '妖灵'], ['dex', '图鉴']].map(function (v) {
       return `<button class="iap-chip${view === v[0] ? ' on' : ''}" data-y="view" data-v="${v[0]}">${v[1]}</button>`;
     }).join('') + `</div>`;
     const head = `<div class="iap-note">这一页只在拥有 <b>DLC《炼妖壶》</b> 时出现。</div>`;
     if (view === 'sp') return head + chips + spiritHTML();
+    if (view === 'dex') return head + chips + dexHTML();
     return head + chips
       + `<div class="iap-sec"><div class="iap-sechd"><b>资源</b><small>账号共用 · 改完立刻写入存档，可填 1.5万 / 3k 这种简写</small></div>`
       + ROWS.map(rowHTML).join('') + '</div>'
@@ -499,7 +582,13 @@
       if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return;
       const y = b.dataset.y;
 
-      if (y === 'view') { view = b.dataset.v === 'sp' ? 'sp' : 'res'; NS.panel.refresh(); return; }
+      if (y === 'view') {
+        const v = b.dataset.v;
+        view = (v === 'sp' || v === 'dex') ? v : 'res';
+        NS.panel.refresh(); return;
+      }
+      /* 图鉴的分类按钮：只换列表，不碰存档 */
+      if (y === 'dex') { dex = b.dataset.v || 'all'; NS.panel.refresh(); return; }
 
       const t = cur(); if (!t) return;
       const s = t.s;
@@ -612,6 +701,29 @@
       }
       if (y === 'fam') { fam = el.value; return; }      // 只记住「＋ 秘技」加哪一类，不写档
     });
+
+    /* --- 图鉴搜索 ---
+       922 行一次性渲染，搜索时只切 display，不重建 DOM：
+       否则每敲一个字都要重新 parse 九百多个节点，还会把焦点弄丢。 */
+    function filterDex() {
+      const q = String(dexQ || '').trim().toLowerCase();
+      const rows = root.querySelectorAll('[data-dexlist] .iap-dexrow');
+      let n = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const hit = !q || String(rows[i].getAttribute('data-s') || '').indexOf(q) >= 0;
+        rows[i].style.display = hit ? '' : 'none';
+        if (hit) n++;
+      }
+      const cnt = root.querySelector('[data-dexn]');
+      if (cnt) cnt.textContent = n;
+    }
+    root.addEventListener('input', function (e) {
+      const el = e.target;
+      if (!el || !el.getAttribute || el.getAttribute('data-y') !== 'dexq') return;
+      dexQ = el.value;
+      filterDex();
+    });
+    filterDex();
 
     /* --- 资源页的按钮（残页 / 妖魄 / 三行资源） --- */
     root.addEventListener('click', function (e) {

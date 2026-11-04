@@ -1,7 +1,7 @@
 {
   "id": "chenxi_abyss_debug",
   "name": { "zh": "深渊护肝台", "en": "Abyss QoL Console" },
-  "version": "1.4.0",
+  "version": "1.5.0",
   "api": 3,
   "author": "ChenXiQianQiu",
   "description": {
