@@ -104,7 +104,13 @@ def build():
     with open(os.path.join(out, "scripts", STYLE_JS), "w", encoding="utf-8") as f:
         f.write(style_js(css))
 
-    # 3) mod.json（版本号以 version.txt 为准）
+    # 3) 封面（创意工坊 / 分享包用；游戏只认模组根目录的 preview.png）
+    for name in ("preview.png", "preview.jpg"):
+        src = os.path.join(MOD_SRC, name)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(out, name))
+
+    # 4) mod.json（版本号以 version.txt 为准）
     with open(os.path.join(out, "mod.json"), "w", encoding="utf-8") as f:
         json.dump(man, f, ensure_ascii=False, indent=2)
         f.write("\n")

@@ -13,7 +13,7 @@
 (function () {
   const NS = (window.IAPM = window.IAPM || {});
   NS.name = '深渊护肝台';
-  NS.version = '1.6.1';
+  NS.version = '1.6.2';
   NS.tabs = [];                       // 各功能页注册进来：{ key, name, render, bind, sync, when }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
   /* 只在特定条件下出现的页签：tab.when() 返回 false 时不建按钮、也不进自检。
