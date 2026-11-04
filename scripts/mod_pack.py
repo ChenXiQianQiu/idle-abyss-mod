@@ -38,7 +38,8 @@ echo   深渊护肝台（深渊放置姬 官方模组包）
 echo ============================================
 echo.
 
-set "DEST=%APPDATA%\IdleAbyssPrincesses\mods\{id}"
+set "MODS=%APPDATA%\IdleAbyssPrincesses\mods"
+set "DEST=%MODS%\{id}"
 
 if not exist "%APPDATA%\IdleAbyssPrincesses" (
   echo [错误] 找不到 %APPDATA%\IdleAbyssPrincesses
@@ -47,6 +48,18 @@ if not exist "%APPDATA%\IdleAbyssPrincesses" (
   echo.
   pause
   exit /b 1
+)
+
+rem 第一次装模组时 mods 文件夹还不存在，这里自己建一个
+if not exist "%MODS%" (
+  echo 没有 mods 文件夹，正在新建...
+  mkdir "%MODS%"
+  if not exist "%MODS%" (
+    echo [失败] 建不了 %MODS%
+    echo.
+    pause
+    exit /b 1
+  )
 )
 
 tasklist /fi "imagename eq IdleAbyssPrincesses.exe" 2>nul | find /i "IdleAbyssPrincesses.exe" >nul
@@ -108,9 +121,15 @@ INSTALL_TXT = """深渊护肝台 v{ver}
 2. 双击 安装.bat
    它会把这个文件夹复制到
      %APPDATA%\\IdleAbyssPrincesses\\mods\\{id}\\
+   没有 mods 文件夹的话，安装.bat 会自己新建一个（第一次装模组都是这样）
 3. 重新启动游戏，进到角色界面后按 F1
 
-也可以手动装：把 {id} 整个文件夹复制到上面那个 mods 目录里，效果一样。
+也可以手动装：把 {id} 整个文件夹复制到
+  %APPDATA%\\IdleAbyssPrincesses\\mods\\
+如果那里没有 mods 文件夹，就自己新建一个，名字必须正好是 mods（小写），
+然后把 {id} 整个文件夹放进去 —— 路径最终是
+  %APPDATA%\\IdleAbyssPrincesses\\mods\\{id}\\mod.json
+少一层 / 多一层游戏都扫不到。
 
 
 二、卸载
@@ -142,7 +161,11 @@ INSTALL_TXT = """深渊护肝台 v{ver}
 营地  派遣立即完成 / 好感一键全满
 秘境  100 层起必定神兽 / 150 层起必定真身 / 指定神兽 /
       专属装备必出 / 专属称号必出 / 神话仓库件数
-深渊  誓约深度 / 蚀刻（必定成功、自选铭文、立即腐化）/ 灵器 / 探骊
+炼妖壶（仅 DLC《炼妖壶》，没买看不到这一页）
+      资源  魂玉 / 朱砂 / 孟婆汤 / 残页每种 +1 / 妖魄每种 +10
+      妖灵  逐只改种族·品质·资质·成长·灵技·秘技，资质与成长可一键拉满
+      秘技图鉴  922 条秘技 + 33 条词缀的效果，可搜索
+      护肝  未收录必收：百妖谱里还没有的种族，击杀必定收进壶（魂也算）
 
 
 五、按 F1 没反应？
