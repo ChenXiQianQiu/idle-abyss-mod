@@ -192,6 +192,36 @@ select.iap-in { text-align: left; }
 /* 誓重数字：和深渊之泪同色系，一眼看出「这条值多少层」 */
 .iap-tagw { flex: 0 0 34px; text-align: right; color: #c070ff; font-size: 11px; font-variant-numeric: tabular-nums; }
 
+/* ---------- 炼妖壶 · 妖灵编辑（v1.3.0） ---------- */
+/* 子页签（资源 / 妖灵）：复用 .iap-chips，只是去掉内边距、贴着页头 */
+.iap-chips.sub { padding: 2px 0 6px; flex: 0 0 auto; }
+/* 编辑区的一行：左边固定宽度的标签，右边控件吃掉剩下的宽度。
+   和 .iap-row 的区别是标签不参与 flex 分配，几个输入框并排时不会左右乱跳。 */
+.iap-fld { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-bottom: 1px solid #1c161b; }
+.iap-fld:last-child { border-bottom: 0; }
+.iap-fld > .iap-lab { flex: 0 0 138px; }
+/* 下拉框吃掉剩下的宽度（目标 / 种族要放得下长名字）；输入框保持固定宽度，
+   否则「成长」那种一格数字会把整行撑满，把右边的说明顶出边框。 */
+.iap-fld > select.iap-in { flex: 1 1 auto; width: auto; min-width: 0; }
+.iap-fld > input.iap-in { flex: 0 0 auto; width: 110px; }
+.iap-fld > input.iap-in.sm { width: 96px; }
+/* 资质三格：攻 / 御 / 灵 各一个小输入框 */
+.iap-apts { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.iap-apts label { color: var(--mute, #6a5e52); font-size: 10px; }
+.iap-apts .iap-in { width: 64px; }
+/* 自带灵力：数字要显眼，宽度按内容走 */
+.iap-cur.wide { width: auto; min-width: 64px; font-size: 13px; }
+/* 灵技 / 秘技一行：序号 + 下拉框 + 按钮 */
+.iap-skrow { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-bottom: 1px solid #1c161b; }
+.iap-skrow:last-child { border-bottom: 0; }
+.iap-skrow .iap-ix { flex: 0 0 16px; text-align: right; color: var(--mute, #6a5e52); font-size: 10px; }
+.iap-skrow select.iap-in { flex: 1 1 auto; width: auto; min-width: 0; }
+.iap-skrow .iap-btn { flex: 0 0 auto; }
+/* 高级 / 普通 是个开关，开着时用鎏金底 */
+.iap-btn.on { background: #5a4214; color: var(--gold-hi, #f0d070); box-shadow: inset 1px 1px 0 #a8802a, inset -1px -1px 0 #2a1e08; }
+.iap-skadd { display: flex; align-items: center; gap: 6px; padding: 4px 8px 6px; flex-wrap: wrap; }
+.iap-skadd select.iap-in { width: 92px; flex: 0 0 auto; text-align: left; }
+
 /* ---------- 底部 ---------- */
 /* 标题栏 / 页签 / 页脚不参与收缩：面板 max-height 是按缩放折算过的，
    内容超高时必须只压 .iap-body（它有 min-height:0），否则这三行会被挤扁、文字被切掉。 */
