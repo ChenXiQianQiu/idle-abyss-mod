@@ -14,7 +14,8 @@ v1.0.0 起改用游戏**自带的官方模组系统**（3.0.0 新增）：模组
 ### 方式一：下载分享包（推荐）
 
 到 [Releases](../../releases) 下载 `IdleAbyssMod-v1.6.1-share.zip`，解压到任意位置，
-双击 `安装.bat` —— 它会把模组复制到 `%APPDATA%\IdleAbyssPrincesses\mods\`。
+双击 `安装.bat` —— 它会把模组复制到 `%APPDATA%\IdleAbyssPrincesses\mods\`，
+**第一次装模组、还没有 `mods` 文件夹的话它会自己新建一个**。
 重启游戏，进角色界面后按 **F1**（或点顶栏的「护肝」按钮）。
 
 > 附件名是英文的：GitHub 会把带中文的附件名丢掉，所以 Release 里叫
