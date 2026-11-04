@@ -45,7 +45,7 @@
     applyScale();
     applyPos();
 
-    tabEl.innerHTML = NS.tabs.map(t => `<button class="iap-tab" data-tab="${t.key}">${t.name}</button>`).join('');
+    tabEl.innerHTML = NS.tabsOn().map(t => `<button class="iap-tab" data-tab="${t.key}">${t.name}</button>`).join('');
     tabEl.addEventListener('click', function (e) {
       const b = e.target.closest('[data-tab]');
       if (!b) return;
@@ -150,7 +150,9 @@
   function renderBody(keepScroll) {
     if (!root) return;
     const st = keepScroll ? grabScroll() : null;
-    const tab = NS.tabs.find(t => t.key === P.tab) || NS.tabs[0];
+    const list = NS.tabsOn();
+    const tab = list.find(t => t.key === P.tab) || list[0];
+    if (!tab) { bodyEl.innerHTML = '<div class="iap-empty bad">没有可用的页签</div>'; return; }
     curTab = tab;
     tabEl.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab.key));
     let html = '';
@@ -178,20 +180,21 @@
   /* 首次打开面板时把所有页签的 render 跑一遍（结果不插进 DOM）。
      正式包没有 DevTools，某一页因为游戏改版抛错时只有切到那一页才看得见；
      这里提前跑一次，把哪一页失败写进主进程日志，玩家报「某页是空的」时能直接定位。
-     只读：render 都是纯函数，最坏情况是补一个缺省字段（如 S.abyss）。 */
+     只读：render 都是纯函数，最坏情况是补一个缺省字段（如 S.abyss）。
+     只跑当前可见的页签：没买 DLC 时炼妖壶页不建按钮，也不该在日志里报错。 */
   let tested = false;
   function selftest() {
     if (tested) return;
     tested = true;
-    const bad = [];
-    NS.tabs.forEach(function (t) {
+    const bad = [], list = NS.tabsOn();
+    list.forEach(function (t) {
       try {
         const h = t.render();
         if (typeof h !== 'string' || !h) bad.push(t.key + ':空');
       } catch (e) { bad.push(t.key + ':' + ((e && e.message) || e)); }
     });
     try {
-      reportErr('[IAPM] 页签自检 ' + (bad.length ? '失败 → ' + bad.join(' | ') : '全部通过（' + NS.tabs.length + ' 页）'));
+      reportErr('[IAPM] 页签自检 ' + (bad.length ? '失败 → ' + bad.join(' | ') : '全部通过（' + list.length + ' 页）'));
     } catch (e) { }
   }
 

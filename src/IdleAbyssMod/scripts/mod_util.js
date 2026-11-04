@@ -13,9 +13,17 @@
 (function () {
   const NS = (window.IAPM = window.IAPM || {});
   NS.name = '深渊护肝台';
-  NS.version = '1.1.0';
-  NS.tabs = [];                       // 各功能页注册进来：{ key, name, render }
+  NS.version = '1.2.0';
+  NS.tabs = [];                       // 各功能页注册进来：{ key, name, render, bind, sync, when }
   NS.registerTab = function (tab) { NS.tabs.push(tab); };
+  /* 只在特定条件下出现的页签：tab.when() 返回 false 时不建按钮、也不进自检。
+     目前只有炼妖壶页用到（没买 / 没下载 DLC 的玩家不该看见这一页）。 */
+  NS.tabsOn = function () {
+    return NS.tabs.filter(function (t) {
+      if (!t.when) return true;
+      try { return !!t.when(); } catch (e) { return false; }
+    });
+  };
 
   /* ---------- 游戏全局的活引用 ----------
      用 getter 而不是快照：读档、换角色、重铸都会把 S / A 整个换掉，

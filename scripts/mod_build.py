@@ -45,6 +45,7 @@ MOD_JS = [
     "mod_ultra.js",
     "mod_camp.js",
     "mod_myth.js",
+    "mod_yao.js",
     "mod_panel.js",
     "mod_boot.js",
 ]

@@ -1,6 +1,7 @@
 # ===== 游戏本体（Steam 管理，绝不入库）=====
 /IdleAbyssPrincesses.exe
 /resources/
+/dlc/
 /locales/
 /chrome_100_percent.pak
 /chrome_200_percent.pak
