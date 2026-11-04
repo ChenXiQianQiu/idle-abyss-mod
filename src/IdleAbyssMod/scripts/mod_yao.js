@@ -120,6 +120,45 @@
     };
   }
 
+  /* 魂走的是另一条路：yaoMingCapture(src, key, mul)（yao_ming.js:141），
+     由 myth.js（神兽）/ raid.js（王庭残魂）/ ultra.js（终焉残魂）/ abyss.js（誓约之主）/
+     yao_yin.js（幽冥森罗殿的饕餮）各自调用，赔率和保底都在 YAO_MING_BAL.capture 里，
+     跟 yaoOnKill 完全没关系 —— 只包 yaoOnKill 是收不到「混沌之魂」这类东西的。
+     同一个思路：先让原函数掷，没掷到、而这只魂还没进百妖谱，就补一只。 */
+  let origMing = null;
+  function forceMing(src, key) {
+    if (!rule.unseen) return null;
+    if (typeof yaoActive === 'function' && !yaoActive()) return null;
+    const S = G.S, A = G.A;
+    if (!S || !S.cls || !A || !A.yao || !A.yao.seen) return null;
+    /* 游戏自己会判「这个来源有没有赔率表」，没有就不该凭空给 */
+    const P = (typeof YAO_MING_BAL === 'object' && YAO_MING_BAL && YAO_MING_BAL.capture) ? YAO_MING_BAL.capture[src] : null;
+    if (!P) return null;
+    if (typeof YAO_MING_SP !== 'object' || !YAO_MING_SP) return null;
+    const spId = YAO_MING_SP[src + ':' + key];
+    if (!spId || A.yao.seen[spId]) return null;
+    if (typeof yaoCatch !== 'function') return null;
+    const Y = A.yao, f = Y.filter;
+    Y.filter = 0;
+    let s = null;
+    try { s = yaoCatch(spId, 1); } finally { Y.filter = f; }
+    if (!s) return null;
+    if (src === 'vow' && typeof yaoBindKey === 'function') s.bind = yaoBindKey();   // 誓约之魂跟角色绑定
+    try { delete Y.pity['m:' + src + ':' + key]; } catch (e) { }
+    try { if (typeof save === 'function') save(); } catch (e) { }
+    return (typeof yaoName === 'function') ? yaoName(s) : '';
+  }
+  function hookMing() {
+    if (origMing || typeof window.yaoMingCapture !== 'function') return;
+    origMing = window.yaoMingCapture;
+    window.yaoMingCapture = function (src, key, mul) {
+      const r = origMing.apply(this, arguments);
+      if (r) return r;                       // 掷到了就照旧（返回值是名字，调用方会显示）
+      try { const n = forceMing(src, key); if (n) return n; } catch (e) { console.warn('[IAPM] 未收录必收(魂)', e); }
+      return r;
+    };
+  }
+
   /* ---------- 资源 ---------- */
   const ROWS = [
     {
@@ -584,7 +623,7 @@
     const on = rule.unseen;
     return `<div class="iap-sec"><div class="iap-sechd"><b>护肝</b><small>改的是游戏规则，开关立刻生效，不用重开游戏</small></div>
       <div class="iap-row"><div class="iap-lab"><b>未收录必收</b>
-          <small>百妖谱里还没有的种族，击杀必定收进壶（首领按幼灵收）；已经在谱里的照常掷点</small></div>
+          <small>百妖谱里还没有的种族，击杀必定收进壶（首领按幼灵收）；神兽 / 王庭 / 终焉 / 誓约之主的「魂」也算。已经在谱里的照常掷点</small></div>
         <i class="iap-cd${on ? ' on' : ''}">${on ? '已开启' : '已关闭'}</i>
         <button class="iap-btn${on ? ' pri' : ''}" data-do="rule-unseen">${on ? '关闭' : '开启'}</button></div>
     </div>`;
@@ -863,6 +902,7 @@
   /* 钩子在这里挂：mod_yao.js 是 lateScript，跑的时候 DLC 的脚本已经加载完了，
      所以 yaoOnKill 一定在 window 上；没买 DLC 时它不存在，hookKill 自己会跳过。 */
   hookKill();
+  hookMing();
 
   NS.registerTab({
     key: 'yao', name: '炼妖壶', render: render, bind: bind, sync: sync,
