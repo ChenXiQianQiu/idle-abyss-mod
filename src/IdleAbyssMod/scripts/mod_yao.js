@@ -65,6 +65,61 @@
   /* 今天那碗孟婆汤还在不在（yao.js:404 yaoSoupFree：soupDay 是不是今天）。 */
   const soupFree = function () { try { return typeof yaoSoupFree === 'function' ? !!yaoSoupFree() : false; } catch (e) { return false; } };
 
+  /* ============================================================
+     护肝规则：未收录必收（包装 yaoOnKill）
+     ------------------------------------------------------------
+     游戏的收妖在 yao.js:233 的 yaoOnKill 里掷点：精英 12%、区域首领 6%（连续 15 次必收）、
+     群居小怪 0.6%，幽冥里每次击杀另掷 YIN_BAL.catch。这里不换概率，而是在**掷完之后**补一刀：
+     如果这次击杀本来能收的种族还没进百妖谱（A.yao.seen），就直接 yaoCatch 收进壶。
+     这样朱砂 / 残页 / 孟婆汤 / 妖魄那些结算照旧由原函数走，只是「没见过的先给一只」。
+     · 只对游戏本来就会收妖的目标生效（首领 / 精英 / 群居小怪 / 幽冥），普通小怪不凭空收。
+     · 强制期间把收妖过滤档位临时关掉，否则会被玩家自己的 filter 当场超度掉。
+     · 开关存在 localStorage（NS.prefs），和面板缩放同一处。
+     ============================================================ */
+  /* 默认开着（用户要的就是这个功能），关掉之后记成 false，下次启动保持关 */
+  const rule = { unseen: NS.prefs.yaoUnseenCatch !== false };
+  let origKill = null;
+
+  /* 这次击杀游戏会拿哪个种族去掷（照抄 yaoOnKill 的判断顺序） */
+  function killTarget(m) {
+    const sp = species();
+    if (!sp || !m) return null;
+    if (m.boss) { const id = '首领·' + m.name; return sp[id] ? { id: id, kind: 1 } : null; }
+    if (typeof RF !== 'undefined' && RF.on && RF.yin) {      // 幽冥：每次击杀都能收
+      const id = m.def && m.def.n; return (id && sp[id]) ? { id: id, kind: 0 } : null;
+    }
+    if (!m.elite) {      // 群居小怪（腐鼠）只有这条路径
+      const sid = m.def && m.def.swarm && m.def.n; return (sid && sp[sid]) ? { id: sid, kind: 0 } : null;
+    }
+    const id = m.def && m.def.n;
+    return (id && sp[id]) ? { id: id, kind: 0 } : null;
+  }
+
+  function forceUnseen(m, noLoot) {
+    if (!rule.unseen || noLoot || !m || m.small) return;
+    if (typeof yaoActive === 'function' && !yaoActive()) return;
+    if (typeof R !== 'undefined' && R.quiet) return;
+    const S = G.S, A = G.A;
+    if (!S || !S.cls || !A || !A.yao || !A.yao.seen) return;
+    if (typeof RF !== 'undefined' && RF.on && RF.abyss) return;    // 深渊里收的东西绑角色，不进壶
+    const t = killTarget(m);
+    if (!t || A.yao.seen[t.id]) return;                            // 已经在百妖谱里，不干预
+    if (typeof yaoCatch !== 'function') return;
+    const Y = A.yao, f = Y.filter;
+    Y.filter = 0;                                                  // 别被自己的过滤档位当场超度
+    try { yaoCatch(t.id, t.kind); } finally { Y.filter = f; }
+  }
+
+  function hookKill() {
+    if (origKill || typeof window.yaoOnKill !== 'function') return;
+    origKill = window.yaoOnKill;
+    window.yaoOnKill = function (m, noLoot) {
+      const r = origKill.apply(this, arguments);
+      try { forceUnseen(m, noLoot); } catch (e) { console.warn('[IAPM] 未收录必收', e); }
+      return r;
+    };
+  }
+
   /* ---------- 资源 ---------- */
   const ROWS = [
     {
@@ -515,7 +570,7 @@
       ? `右边数字是「标准妖灵」在 ${lvl} 级、资质 1300、成长 1.00、普通档下的值（yaoLine），只能横向比大小；实际数值在妖灵页每行右边。`
       : `全部 ${miAll.length} 条秘技，说明取自游戏 yaoMiDesc()。分类按钮上的数字是条数。`;
 
-    return `<div class="iap-sec"><div class="iap-sechd"><b>图鉴</b><small>${note}</small></div>
+    return `<div class="iap-sec"><div class="iap-sechd"><b>秘技图鉴</b><small>${note}</small></div>
       <div class="iap-chips">${chips}</div>
       <div class="iap-fld"><div class="iap-lab"><b>搜索</b><small>名字和效果里都能搜</small></div>
         <input class="iap-in" type="text" spellcheck="false" data-y="dexq" value="${NS.esc(dexQ)}" placeholder="护盾 / 暴击 / 流血 / 契">
@@ -524,19 +579,30 @@
       <div class="iap-dex" data-dexlist>${rows}</div>`;
   }
 
+  /* ---------- 护肝规则（资源子页顶部） ---------- */
+  function rulesHTML() {
+    const on = rule.unseen;
+    return `<div class="iap-sec"><div class="iap-sechd"><b>护肝</b><small>改的是游戏规则，开关立刻生效，不用重开游戏</small></div>
+      <div class="iap-row"><div class="iap-lab"><b>未收录必收</b>
+          <small>百妖谱里还没有的种族，击杀必定收进壶（首领按幼灵收）；已经在谱里的照常掷点</small></div>
+        <i class="iap-cd${on ? ' on' : ''}">${on ? '已开启' : '已关闭'}</i>
+        <button class="iap-btn${on ? ' pri' : ''}" data-do="rule-unseen">${on ? '关闭' : '开启'}</button></div>
+    </div>`;
+  }
+
   /* ---------- 页 ---------- */
   function render() {
     const S = G.S, A = G.A;
     if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     if (!YA()) return `<div class="iap-empty bad">炼妖壶的账号档读不出来（A.yao 结构异常），先回游戏里打开一次炼妖壶。</div>`;
-    const chips = `<div class="iap-chips sub">` + [['res', '资源'], ['sp', '妖灵'], ['dex', '图鉴']].map(function (v) {
+    const chips = `<div class="iap-chips sub">` + [['res', '资源'], ['sp', '妖灵'], ['dex', '秘技图鉴']].map(function (v) {
       return `<button class="iap-chip${view === v[0] ? ' on' : ''}" data-y="view" data-v="${v[0]}">${v[1]}</button>`;
     }).join('') + `</div>`;
     const head = `<div class="iap-note">这一页只在拥有 <b>DLC《炼妖壶》</b> 时出现。</div>`;
     if (view === 'sp') return head + chips + spiritHTML();
     if (view === 'dex') return head + chips + dexHTML();
-    return head + chips
+    return head + chips + rulesHTML()
       + `<div class="iap-sec"><div class="iap-sechd"><b>资源</b><small>账号共用 · 改完立刻写入存档，可填 1.5万 / 3k 这种简写</small></div>`
       + ROWS.map(rowHTML).join('') + '</div>'
       + pageHTML() + essenceHTML();
@@ -731,6 +797,16 @@
       if (!btn) return;
       const act = btn.dataset.do;
 
+      /* 护肝规则：未收录必收 */
+      if (act === 'rule-unseen') {
+        rule.unseen = !rule.unseen;
+        NS.prefs.yaoUnseenCatch = rule.unseen;
+        NS.savePrefs();
+        NS.toast(rule.unseen ? '未收录必收：已开启' : '未收录必收：已关闭');
+        NS.panel.refresh();
+        return;
+      }
+
       /* 残页：每种已有的各 +1（加在普通那一档，朱批不凭空发） */
       if (act === 'page+1') {
         const y = YA(); if (!y || !y.pages) return;
@@ -783,6 +859,10 @@
       if (r.max !== 1e9 && next >= r.max) NS.toast(r.name + ' 已达上限 ' + r.max);
     });
   }
+
+  /* 钩子在这里挂：mod_yao.js 是 lateScript，跑的时候 DLC 的脚本已经加载完了，
+     所以 yaoOnKill 一定在 window 上；没买 DLC 时它不存在，hookKill 自己会跳过。 */
+  hookKill();
 
   NS.registerTab({
     key: 'yao', name: '炼妖壶', render: render, bind: bind, sync: sync,
