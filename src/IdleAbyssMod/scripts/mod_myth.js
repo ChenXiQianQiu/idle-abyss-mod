@@ -164,7 +164,7 @@
 
   function render() {
     const S = G.S, A = G.A;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     const B = G.MYTH_BAL, T = G.MYTH;
     if (!B || !T || !G.MYTH_KEYS.length) return `<div class="iap-empty">这个版本还没有传奇秘境（需要游戏 2.4.0 以上）。</div>`;

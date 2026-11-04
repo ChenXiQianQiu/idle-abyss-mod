@@ -74,7 +74,7 @@ Mod 脚本 → 重新打包**。Mod 脚本必须放在 `main.js` 之后加载（
 python scripts/mod_build.py              # 只生成 build/mods/chenxi_abyss_debug/
 python scripts/mod_build.py --install    # 生成并装到 %APPDATA%\IdleAbyssPrincesses\mods\
 python scripts/mod_build.py --uninstall  # 从存档目录删掉
-python scripts/mod_pack.py               # 打分享包 dist/深渊调试台-v<版本>-分享包.zip
+python scripts/mod_pack.py               # 打分享包 dist/深渊护肝台-v<版本>-分享包.zip
 ```
 
 - 构建脚本会自检：`lateScripts` 里每个文件都在、`mod.json` 版本写对了、没有残留的 `window.IAP`。
@@ -88,7 +88,7 @@ python scripts/mod_pack.py               # 打分享包 dist/深渊调试台-v<�
 - 游戏必须**通过 Steam 启动**（`steam://rungameid/5335850`）。直接运行 exe 时
   `steamworks.init()` 会失败并静默退出，日志里连「启动完成」都不会出现——这不是 Mod 的问题。
 - 主进程日志：`%APPDATA%/IdleAbyssPrincesses/logs/main.log`。
-  Mod 启动时会写一行 `[IAPM] 深渊调试台 vX.Y.Z loaded, panel=true, official=true`，
+  Mod 启动时会写一行 `[IAPM] 深渊护肝台 vX.Y.Z loaded, panel=true, official=true`，
   是判断「Mod 有没有被加载」的第一手证据；模组扫描结果在同一份日志里（`模组：找到 N 个：...`）。
 - 渲染层报错也会经 `reportErr` 落到同一份日志里。
 - 模组调试：Steam 启动选项加 `--devtools` 开开发者工具；`--no-mods` 强制不加载模组；

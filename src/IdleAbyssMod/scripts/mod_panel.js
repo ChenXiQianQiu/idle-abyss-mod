@@ -167,7 +167,7 @@
     if (st) putScroll(st); else bodyEl.scrollTop = 0;
     if (tab.bind) { try { tab.bind(paneRoot); } catch (e) { console.warn('[IAPM] bind', e); } }
     lastS = NS.G.S; lastSlot = NS.G.slot;
-    /* 页面高度变了（比如从短的秘境页切到长的深渊页），面板会长高，这时要把位置重新夹一次，
+    /* 页面高度变了（比如从短的营地页切到长的装备页），面板会长高，这时要把位置重新夹一次，
        否则长出来的那截会顶到屏幕外面去 */
     applyPos();
   }

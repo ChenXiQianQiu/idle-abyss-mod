@@ -73,7 +73,7 @@
 
   function render() {
     const S = G.S;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     const rules = newRules(S) ? '新规则' : '旧规则';
     const cls = (typeof CLASSES === 'object' && CLASSES[S.cls] ? CLASSES[S.cls].n : S.cls);
     return `<div class="iap-note">当前角色：<b>${NS.esc(cls)}</b> · ${rules} · 存档位 ${G.slot} · 等级上限 ${G.LEVEL_CAP}</div>`

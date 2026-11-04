@@ -449,7 +449,7 @@
       : '改品质会改变词缀区间与词缀条数上限';
     /* 深渊誓约（2.8.3）：腐化 / 绑定的提示。腐化后游戏已经把强化、附魔、打孔、升华、
        灌注、蚀刻全部锁死（ui.js:961 / 971 / 1186），只有换宝石还能用；
-       调试台仍然允许改词缀和等级，但那是绕过游戏限制，先说清楚。 */
+       护肝台仍然允许改词缀和等级，但那是绕过游戏限制，先说清楚。 */
     const abNote = NS.abyssCor(it)
       ? `<div class="iap-hint bad">这件装备已经<b>腐化</b>：游戏里不能再强化 / 附魔 / 打孔 / 升华 / 灌注 / 蚀刻，只能换宝石。
           下面的词缀和等级仍然可以改，但属于绕过限制，游戏本身不会拦。</div>`
@@ -471,7 +471,7 @@
 
   function render() {
     const S = G.S;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     const all = NS.collectItems();
     if (EQ.sel && all.every(x => x.it !== EQ.sel)) EQ.sel = null;
     return `<div class="iap-eqwrap">

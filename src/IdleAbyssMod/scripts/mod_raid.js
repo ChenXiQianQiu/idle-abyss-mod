@@ -211,7 +211,7 @@
 
   function render() {
     const S = G.S;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (typeof raidWeekCheck === 'function') { try { raidWeekCheck(); } catch (e) { } }   // 先处理跨周清 CD
     if (!S.raid) return `<div class="iap-empty">角色存档里没有团本数据（还没进过王庭？）。</div>`;
 

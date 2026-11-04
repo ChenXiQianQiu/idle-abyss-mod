@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""构建 / 安装「深渊调试台」—— 官方模组包（游戏 3.0.0 起的模组系统）。
+"""构建 / 安装「深渊护肝台」—— 官方模组包（游戏 3.0.0 起的模组系统）。
 
 3.0.0 起游戏自带模组加载器，不再需要改 `resources/app.asar`：
 一个模组就是一个文件夹（mod.json + 脚本 + 样式），放进
@@ -45,7 +45,6 @@ MOD_JS = [
     "mod_ultra.js",
     "mod_camp.js",
     "mod_myth.js",
-    "mod_abyss.js",
     "mod_panel.js",
     "mod_boot.js",
 ]

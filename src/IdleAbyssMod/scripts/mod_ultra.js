@@ -131,7 +131,7 @@
 
   function render() {
     const S = G.S, A = G.A;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     const u = acc();
     if (!u) return `<div class="iap-empty">账号档里还没有超高难本进度：先通关一次永夜王庭普通难度（当前角色 · 新规则）才会出现入口。</div>`;

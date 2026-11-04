@@ -182,7 +182,7 @@
 
   function render() {
     const S = G.S, A = G.A;
-    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开调试台。</div>`;
+    if (!S || !S.cls) return `<div class="iap-empty">还没有进入角色，先选一个英雄再打开护肝台。</div>`;
     if (!A) return `<div class="iap-empty">账号档还没就绪（读档中），稍等再试。</div>`;
     return `<div class="iap-note">改完立刻写入存档。数值可以填 <b>1.5万</b> / <b>2亿</b> / <b>3k</b> 这种简写。</div>`
       + ROWS.map(rowHTML).join('')

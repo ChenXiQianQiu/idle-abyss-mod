@@ -4,7 +4,7 @@
    ------------------------------------------------------------
    最后一个执行的脚本。职责：
      1. 确认命名空间就绪、往游戏日志里留一行加载标记；
-     2. 把调试台挂到官方接口上：设置 → 模组 里的入口、顶栏按钮；
+     2. 把护肝台挂到官方接口上：设置 → 模组 里的入口、顶栏按钮；
      3. 给玩家一个轻提示。
    任何一步失败都只打日志，绝不打断游戏。
 
@@ -28,14 +28,14 @@
     if (!API || !API.ui || typeof API.ui.addPanel !== 'function') return false;
     API.ui.addPanel({
       id: 'console',
-      title: { zh: NS.name, en: 'Abyss Debug Console' },
+      title: { zh: NS.name, en: 'Abyss QoL Console' },
       render: function (el) {
         const tip = document.createElement('div');
         tip.className = 'iap-entry-tip';
         tip.append('改装备、改资源、开团本 / 终焉 / 秘境开关。改动即时写入存档，动之前建议先备份。');
         const btn = document.createElement('button');
         btn.className = 'iap-btn iap-entry-open';
-        btn.append('打开调试台');
+        btn.append('打开护肝台');
         btn.addEventListener('click', function () { NS.panel.show(); });
         el.append(tip, btn);
       },
@@ -43,13 +43,13 @@
     return true;
   }
 
-  /* 顶栏按钮：设置按钮左边一个「调试」。和 F1 等价。 */
+  /* 顶栏按钮：设置按钮左边一个「护肝」。和 F1 等价。 */
   function registerTopButton() {
     if (!API || !API.ui || typeof API.ui.addTopButton !== 'function') return false;
     API.ui.addTopButton({
       id: 'console',
-      text: { zh: '调试', en: 'DBG' },
-      title: { zh: '深渊调试台（F1）', en: 'Abyss Debug Console (F1)' },
+      text: { zh: '护肝', en: 'QoL' },
+      title: { zh: '深渊护肝台（F1）', en: 'Abyss QoL Console (F1)' },
       onClick: function () { NS.panel.toggle(); },
     });
     return true;
@@ -66,7 +66,7 @@
     try { reportErr(`[IAPM] ${NS.name} v${NS.version} loaded, panel=${!!NS.panel}, official=${hooked}`); } catch (e) { }
     /* 只有在已经进入角色时才提示，标题页不打扰 */
     setTimeout(function () {
-      try { if (NS.G.S && NS.G.S.cls) NS.toast('按 F1 打开深渊调试台'); } catch (e) { }
+      try { if (NS.G.S && NS.G.S.cls) NS.toast('按 F1 打开深渊护肝台'); } catch (e) { }
     }, 3000);
   }
 

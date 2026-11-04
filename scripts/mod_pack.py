@@ -12,7 +12,7 @@
     安装说明.txt               纯文本说明
 
 用法：
-    python scripts/mod_pack.py     # 生成 dist/深渊调试台-v<版本>-分享包.zip
+    python scripts/mod_pack.py     # 生成 dist/深渊护肝台-v<版本>-分享包.zip
 """
 import os
 import sys
@@ -30,11 +30,11 @@ DIST = os.path.join(ROOT, "dist")
 INSTALL_BAT = r"""@echo off
 chcp 936 >nul
 setlocal
-title 深渊调试台 安装
+title 深渊护肝台 安装
 cd /d "%~dp0"
 
 echo ============================================
-echo   深渊调试台（深渊放置姬 官方模组包）
+echo   深渊护肝台（深渊放置姬 官方模组包）
 echo ============================================
 echo.
 
@@ -71,7 +71,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo   安装完成
-echo   重启游戏后按 F1（或点顶栏「调试」）打开面板
+echo   重启游戏后按 F1（或点顶栏「护肝」）打开面板
 echo ============================================
 echo.
 pause
@@ -79,7 +79,7 @@ pause
 
 UNINSTALL_BAT = r"""@echo off
 chcp 936 >nul
-title 深渊调试台 卸载
+title 深渊护肝台 卸载
 set "DEST=%APPDATA%\IdleAbyssPrincesses\mods\{id}"
 
 if not exist "%DEST%" (
@@ -90,16 +90,16 @@ if not exist "%DEST%" (
 )
 
 rmdir /s /q "%DEST%"
-echo 已卸载。重启游戏后调试台就没了（存档里的角色数据不受影响）。
+echo 已卸载。重启游戏后护肝台就没了（存档里的角色数据不受影响）。
 echo.
 pause
 """
 
-INSTALL_TXT = """深渊调试台 v{ver}
-《深渊放置姬 / Idle Abyss Princesses》游戏内调试面板
+INSTALL_TXT = """深渊护肝台 v{ver}
+《深渊放置姬 / Idle Abyss Princesses》游戏内护肝面板
 
-按 F1 打开 / 关闭，也可以点顶栏的「调试」按钮，或从
-设置 → 模组 → 深渊调试台 里打开。所有改动立刻写进存档。
+按 F1 打开 / 关闭，也可以点顶栏的「护肝」按钮，或从
+设置 → 模组 → 深渊护肝台 里打开。所有改动立刻写进存档。
 
 
 一、安装（约 10 秒，不需要 Python）
@@ -147,9 +147,9 @@ INSTALL_TXT = """深渊调试台 v{ver}
 
 五、按 F1 没反应？
 ------------------------------------------------------------
-1. 确认按的是 F1（部分笔记本要按 Fn + F1），或者点顶栏「调试」按钮
+1. 确认按的是 F1（部分笔记本要按 Fn + F1），或者点顶栏「护肝」按钮
 2. 打开日志 %APPDATA%\\IdleAbyssPrincesses\\logs\\main.log，搜 IAPM
-   有「[IAPM] 深渊调试台 v{ver} loaded」说明模组已加载；
+   有「[IAPM] 深渊护肝台 v{ver} loaded」说明模组已加载；
    没有就是没装上，或者被安全模式跳过了
 3. 游戏崩过一次之后会自动进安全模式（不加载模组）：
    正常退出再启动一次就好，也可以在 Steam 启动选项里去掉 --no-mods
@@ -167,7 +167,7 @@ def pack():
     out_dir, man = mod_build.build()          # 先构建，保证包里是最新代码
     mod_id = man["id"]
     os.makedirs(DIST, exist_ok=True)
-    out = os.path.join(DIST, "深渊调试台-v%s-分享包.zip" % ver)
+    out = os.path.join(DIST, "深渊护肝台-v%s-分享包.zip" % ver)
     if os.path.exists(out):
         os.remove(out)
 

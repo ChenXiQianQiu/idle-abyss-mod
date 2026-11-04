@@ -115,7 +115,7 @@
     } catch (e) { return false; }
     try { if (typeof refreshStats === 'function') refreshStats(); } catch (e) { }
     /* 游戏原函数的 log 写的是随机到的那条，这里补一行说明实际换成了什么 */
-    try { if (typeof log === 'function' && typeof affName === 'function') log('探骊：按调试台设置换成 ' + affName(PE.aff)); } catch (e) { }
+    try { if (typeof log === 'function' && typeof affName === 'function') log('探骊：按护肝台设置换成 ' + affName(PE.aff)); } catch (e) { }
     return true;
   }
 

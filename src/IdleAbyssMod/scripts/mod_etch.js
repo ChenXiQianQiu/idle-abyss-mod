@@ -222,7 +222,7 @@
     const caffNames = (a && a.caff || []).map(function (k) { return (G.ABYSS_CAFF[k] || {}).n || k; });
     return `<div class="iap-sec"><div class="iap-sechd"><b>深渊蚀刻</b><small>${state}</small></div>
       ${cor ? `<div class="iap-hint bad">腐化后游戏里不能再强化 / 附魔 / 打孔 / 升华 / 灌注 / 蚀刻，只能换宝石。
-        下面是调试台的操作，属于绕过限制。${caffNames.length ? '腐化词缀：' + NS.esc(caffNames.join('、')) : ''}</div>` : ''}
+        下面是护肝台的操作，属于绕过限制。${caffNames.length ? '腐化词缀：' + NS.esc(caffNames.join('、')) : ''}</div>` : ''}
       <div class="iap-affadd">
         <button class="iap-btn" data-etch="etch">蚀刻一次</button>
         <button class="iap-btn" data-etch="reset">回满次数</button>

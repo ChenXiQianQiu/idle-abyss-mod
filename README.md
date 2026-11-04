@@ -1,7 +1,7 @@
-# 深渊调试台 · Idle Abyss Mod
+# 深渊护肝台 · Idle Abyss Mod
 
-《深渊放置姬 / Idle Abyss Princesses》的游戏内调试面板 Mod，按 **F1** 打开 / 关闭，
-所有改动即时写入存档。当前版本 **v1.0.0**，适配游戏 **3.0.0**。
+《深渊放置姬 / Idle Abyss Princesses》的游戏内护肝面板 Mod，按 **F1** 打开 / 关闭，
+所有改动即时写入存档。当前版本 **v1.1.0**，适配游戏 **3.0.0**。
 
 v1.0.0 起改用游戏**自带的官方模组系统**（3.0.0 新增）：模组就是一个文件夹，放进
 `%APPDATA%\IdleAbyssPrincesses\mods\` 就生效，**不再修改 `resources/app.asar`**，
@@ -13,12 +13,12 @@ v1.0.0 起改用游戏**自带的官方模组系统**（3.0.0 新增）：模组
 
 ### 方式一：下载分享包（推荐）
 
-到 [Releases](../../releases) 下载 `IdleAbyssMod-v1.0.0-share.zip`，解压到任意位置，
+到 [Releases](../../releases) 下载 `IdleAbyssMod-v1.1.0-share.zip`，解压到任意位置，
 双击 `安装.bat` —— 它会把模组复制到 `%APPDATA%\IdleAbyssPrincesses\mods\`。
-重启游戏，进角色界面后按 **F1**（或点顶栏的「调试」按钮）。
+重启游戏，进角色界面后按 **F1**（或点顶栏的「护肝」按钮）。
 
 > 附件名是英文的：GitHub 会把带中文的附件名丢掉，所以 Release 里叫
-> `IdleAbyssMod-v<版本>-share.zip`，本地 `dist/` 里仍叫 `深渊调试台-v<版本>-分享包.zip`，
+> `IdleAbyssMod-v<版本>-share.zip`，本地 `dist/` 里仍叫 `深渊护肝台-v<版本>-分享包.zip`，
 > 两个是同一个包。
 
 卸载双击 `卸载.bat`，或在游戏里「设置 → 模组」停用 / 删除。
@@ -43,7 +43,6 @@ python scripts/mod_pack.py               # 打分享包到 dist/
 | 终焉 | 无限周奖励 / 终焉词条自选（升华与重选） |
 | 营地 | 派遣立即完成 / 好感一键全满 |
 | 秘境 | 100 层起必定神兽 / 150 层起必定真身 / 指定神兽 / 专属装备必出 / 专属称号必出 / 神话仓库件数 |
-| 深渊 | 纪录与位阶 / 预设深度 / 本周阶梯领取状态 / 蚀心·守心符·深渊之泪 / 蚀刻与腐化**规则速查**（只读）/ 25 条誓约分级速查 |
 
 完整说明见 [`share/Mod修改内容说明.md`](share/Mod修改内容说明.md)。
 
@@ -58,7 +57,7 @@ src/IdleAbyssMod/        Mod 源码（唯一手写的部分，直接就是模组
 scripts/
   asar_extract.py        解包 app.asar（纯 Python，只用于读游戏代码）
   mod_build.py           构建 / 安装 / 卸载
-  mod_pack.py            打分享包（dist/深渊调试台-v<版本>-分享包.zip）
+  mod_pack.py            打分享包（dist/深渊护肝台-v<版本>-分享包.zip）
 docs/                    代码索引与模块说明
 share/                   对外说明文档
 ```
@@ -78,7 +77,7 @@ share/                   对外说明文档
 - 样式只有一份真身 `styles/mod_panel.css`，构建时转成 `scripts/mod_styles.js` 注入内联
   `<style>`：页面 CSP 的 `style-src` 不含 `iapmod:`，外链模组样式会被拦；
 - 面板入口挂到官方接口上：`IAP.ui.addPanel`（设置 → 模组里一个按钮）+
-  `IAP.ui.addTopButton`（顶栏「调试」），F1 仍由面板自己接管。
+  `IAP.ui.addTopButton`（顶栏「护肝」），F1 仍由面板自己接管。
 
 脚本一律 IIFE，不声明新全局；改数值时全部夹在游戏自己的公式区间内
 （`affRange()` / `raidRollAff()` / `rollItem` 的 `rnd(.85, 1.15)`），拦截行为则包装 `window`
