@@ -620,12 +620,13 @@
       }).join('');
     } else {
       const list = dex === 'all' ? miAll : miAll.filter(x => x.fam === dex);
+      const tLabel = t ? NS.esc(labelOf(t)) : '';      // 922 行都用同一个 title，算一次就够
       rows = list.map(function (x) {
         const head = `<b>${NS.esc(x.n)}</b><i>${NS.esc(FAM_SHORT[x.fam] || '')}</i>`;
         let act = '';
         if (t) act = used[x.k]
           ? `<button class="iap-btn tiny on" data-y="dexdel" data-k="${NS.esc(x.k)}" title="已经在这只身上，点一下去掉">已有</button>`
-          : `<button class="iap-btn tiny" data-y="dexadd" data-k="${NS.esc(x.k)}" title="加进 ${NS.esc(labelOf(t))}">＋</button>`;
+          : `<button class="iap-btn tiny" data-y="dexadd" data-k="${NS.esc(x.k)}" title="加进 ${tLabel}">＋</button>`;
         return dexRow((FAM_SHORT[x.fam] || '') + ' ' + x.n + ' ' + x.d, head, x.d, act);
       }).join('');
     }
