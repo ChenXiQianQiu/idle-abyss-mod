@@ -254,6 +254,9 @@ select.iap-in { text-align: left; }
 .iap-dexh em { margin-left: auto; color: #8a7a64; font-size: 10px; font-style: normal;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .iap-dexd { color: #b8a888; font-size: 11px; line-height: 14px; padding-top: 1px; }
+/* 图鉴行右边的「＋ / 已有」（v1.7.0）：贴到行尾，不跟着族名走 */
+.iap-dexact { margin-left: auto; flex: 0 0 auto; align-self: center; display: flex; gap: 4px; }
+.iap-dexact .iap-btn { padding: 0 6px; min-width: 0; }
 
 /* ---------- 底部 ---------- */
 /* 标题栏 / 页签 / 页脚不参与收缩：面板 max-height 是按缩放折算过的，

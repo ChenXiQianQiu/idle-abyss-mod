@@ -414,6 +414,9 @@
   const miDesc = function (k) {
     try { return typeof yaoMiDesc === 'function' ? String(yaoMiDesc(k) || '') : ''; } catch (e) { return ''; }
   };
+  const miName = function (k) {
+    try { return String(typeof yaoMiName === 'function' ? (yaoMiName(k) || k) : k); } catch (e) { return String(k); }
+  };
   const miFamName = function (k) {
     try {
       const f = typeof yaoMiFam === 'function' ? yaoMiFam(k) : '';
@@ -434,6 +437,13 @@
   };
 
   /* ---------- 妖灵子页 ---------- */
+  /* 目标下拉的选项：「妖灵」页和图鉴页共用同一个 sel，选哪只两页一起变。 */
+  function targetOptsHTML() {
+    return targetList().map(function (x) {
+      const on = (x.src === sel.src && x.id === sel.id) ? ' selected' : '';
+      return `<option value="${x.src}|${NS.esc(x.id)}"${on}>${NS.esc(labelOf(x))}</option>`;
+    }).join('');
+  }
   function spiritHTML() {
     const list = targetList();
     if (!list.length) {
@@ -448,10 +458,7 @@
     const hiN = s.sk.filter(function (x) { return !isMi(x.k) && x.hi; }).length;
     const potN = (YA() && Array.isArray(YA().pot)) ? YA().pot.length : 0;
 
-    const targetOpts = list.map(function (x) {
-      const on = (x.src === sel.src && x.id === sel.id) ? ' selected' : '';
-      return `<option value="${x.src}|${NS.esc(x.id)}"${on}>${NS.esc(labelOf(x))}</option>`;
-    }).join('');
+    const targetOpts = targetOptsHTML();
     const spOpts = speciesList().map(function (x) {
       const on = x.k === s.sp ? ' selected' : '';
       return `<option value="${NS.esc(x.k)}"${on}>${NS.esc(x.n)}（${WX_N[x.wx] || '—'}）</option>`;
@@ -570,9 +577,10 @@
     });
   }
 
-  function dexRow(srch, head, desc) {
+  /* 一行图鉴：名字 / 族名（head）+ 说明（desc）+ 右边可选的按钮（act，秘技行才有） */
+  function dexRow(srch, head, desc, act) {
     return `<div class="iap-dexrow" data-s="${NS.esc(srch.toLowerCase())}">`
-      + `<div class="iap-dexh">${head}</div>`
+      + `<div class="iap-dexh">${head}${act ? `<span class="iap-dexact">${act}</span>` : ''}</div>`
       + (desc ? `<div class="iap-dexd">${NS.esc(desc)}</div>` : '') + '</div>';
   }
 
@@ -580,6 +588,20 @@
     const miAll = dexCatalog(), affs = affCatalog();
     const cnt = {};
     miAll.forEach(function (x) { cnt[x.fam] = (cnt[x.fam] || 0) + 1; });
+
+    /* 图鉴里能直接加秘技（v1.7.0）：目标就是「妖灵」页在改的那只（同一个 sel）。
+       已经有这条的显示「已有」，再点一下去掉；都走 soft 提交，
+       否则每加一条都要重建 922 行、把滚动位置和搜索词一起冲掉。 */
+    const tgts = targetList(), t = tgts.length ? cur() : null;
+    const used = {}, s = t ? t.s : null;
+    if (s) (s.sk || []).forEach(function (x) { used[x.k] = 1; });
+    const miN = s ? (s.sk || []).filter(function (x) { return isMi(x.k); }).length : 0;
+    const tgtHTML = !t
+      ? `<div class="iap-empty sm">壶里还没有妖灵、也没有带器灵的灵器，图鉴只能看。</div>`
+      : `<div class="iap-fld"><div class="iap-lab"><b>加到</b>
+          <small>点「＋」写进这只 · 再点「已有」去掉</small></div>
+          <select class="iap-in" data-y="target">${targetOptsHTML()}</select>
+          <span class="iap-cur wide"><i data-micnt>${miN} / ${miMax()}</i></span></div>`;
 
     const chips = [`<button class="iap-chip${dex === 'all' ? ' on' : ''}" data-y="dex" data-v="all">全部 ${miAll.length}</button>`]
       .concat(MI_FAM.map(function (f) {
@@ -600,16 +622,21 @@
       const list = dex === 'all' ? miAll : miAll.filter(x => x.fam === dex);
       rows = list.map(function (x) {
         const head = `<b>${NS.esc(x.n)}</b><i>${NS.esc(FAM_SHORT[x.fam] || '')}</i>`;
-        return dexRow((FAM_SHORT[x.fam] || '') + ' ' + x.n + ' ' + x.d, head, x.d);
+        let act = '';
+        if (t) act = used[x.k]
+          ? `<button class="iap-btn tiny on" data-y="dexdel" data-k="${NS.esc(x.k)}" title="已经在这只身上，点一下去掉">已有</button>`
+          : `<button class="iap-btn tiny" data-y="dexadd" data-k="${NS.esc(x.k)}" title="加进 ${NS.esc(labelOf(t))}">＋</button>`;
+        return dexRow((FAM_SHORT[x.fam] || '') + ' ' + x.n + ' ' + x.d, head, x.d, act);
       }).join('');
     }
 
     const lvl = Math.max(1, Number(G.S && G.S.level) || 1);
     const note = dex === 'aff'
       ? `右边数字是「标准妖灵」在 ${lvl} 级、资质 1300、成长 1.00、普通档下的值（yaoLine），只能横向比大小；实际数值在妖灵页每行右边。`
-      : `全部 ${miAll.length} 条秘技，说明取自游戏 yaoMiDesc()。分类按钮上的数字是条数。`;
+      : `全部 ${miAll.length} 条秘技，说明取自游戏 yaoMiDesc()。分类按钮上的数字是条数；右边的「＋」直接加进上面选中的那只。`;
 
     return `<div class="iap-sec"><div class="iap-sechd"><b>秘技图鉴</b><small>${note}</small></div>
+      ${dex === 'aff' ? '' : tgtHTML}
       <div class="iap-chips">${chips}</div>
       <div class="iap-fld"><div class="iap-lab"><b>搜索</b><small>名字和效果里都能搜</small></div>
         <input class="iap-in" type="text" spellcheck="false" data-y="dexq" value="${NS.esc(dexQ)}" placeholder="护盾 / 暴击 / 流血 / 契">
@@ -694,6 +721,40 @@
       }
       /* 图鉴的分类按钮：只换列表，不碰存档 */
       if (y === 'dex') { dex = b.dataset.v || 'all'; NS.panel.refresh(); return; }
+
+      /* 图鉴行上的「＋ / 已有」：直接写进当前目标。
+         soft 提交（不重建 DOM）+ 就地换掉这一行的按钮，保住滚动位置和搜索词。 */
+      if (y === 'dexadd' || y === 'dexdel') {
+        const t0 = cur();
+        if (!t0) { NS.toast('先在「妖灵」页选一只目标', true); return; }
+        const s0 = t0.s, k = b.dataset.k || '';
+        if (!isMi(k) || !miOk(k)) { NS.toast('这条秘技游戏里没有', true); return; }
+        const list0 = s0.sk || (s0.sk = []);
+        const j = list0.findIndex(function (x) { return x.k === k; });
+        if (y === 'dexadd') {
+          if (j >= 0) { NS.toast('这只已经有这条秘技了', true); return; }
+          if (list0.filter(function (x) { return isMi(x.k); }).length >= miMax()) { NS.toast('秘技最多 ' + miMax() + ' 条', true); return; }
+          if (list0.length >= capOf(s0)) { NS.toast('条数已满（' + capOf(s0) + ' 条）', true); return; }
+          list0.push({ k: k, hi: 0 });
+          commit(t0, '加了一条秘技：' + miName(k), true);
+        } else {
+          if (j < 0) { NS.toast('这只身上没有这条秘技', true); return; }
+          list0.splice(j, 1);
+          commit(t0, '去掉一条秘技：' + miName(k), true);
+        }
+        if (y === 'dexadd') {
+          b.classList.add('on'); b.textContent = '已有';
+          b.setAttribute('data-y', 'dexdel');
+          b.setAttribute('title', '已经在这只身上，点一下去掉');
+        } else {
+          b.classList.remove('on'); b.textContent = '＋';
+          b.setAttribute('data-y', 'dexadd');
+          b.setAttribute('title', '加进 ' + labelOf(t0));
+        }
+        const cntEl = root.querySelector('[data-micnt]');
+        if (cntEl) cntEl.textContent = list0.filter(function (x) { return isMi(x.k); }).length + ' / ' + miMax();
+        return;
+      }
 
       const t = cur(); if (!t) return;
       const s = t.s;
