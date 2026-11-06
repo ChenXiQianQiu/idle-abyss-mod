@@ -14,7 +14,7 @@
      · 自定义腐化词缀      abyssRollCaff 返回自选的，不够时让原函数补随机
      · 回满蚀刻次数        it.abyss.n = 0
      · 取消腐化            cor = 0、清 caff；pre 有快照时恢复阶数与次数
-     · 自定义 5 阶铭文     满阶时把待选列表的第一条换成自选（也可直接装上）
+     · 5 阶铭文自选       觉醒 / 重选时把本部位全部铭文列出来（铁匠页签里挑）
      · 立即腐化            直接 abyssCorrupt(it, [['twin',1]])，不花资源、不占次数
 
    三个被包装的函数都是顶层 function 声明 → 挂在 window 上，内部裸名调用，
@@ -273,25 +273,12 @@
       return `<div class="iap-caffd${on ? ' on' : ''}" data-caffkey="${k}"><b>${NS.esc(C[k].n)}</b>${NS.esc(C[k].d || '')}</div>`;
     }));
   }
-  /* 铭文说明：只显示这件装备已经装上的那条（v1.6.4 起面板不再自己装铭文，
-     觉醒 / 重选都在铁匠页签里从全部铭文里挑，所以这里只做「当前是什么、效果是什么」的速查） */
-  function inscDesc(it) {
-    const I = G.ABYSS_INSC || {}, a = NS.abyssOf(it) || {};
-    const cur = a.insc && I[a.insc] ? a.insc : '';
-    if (!cur) {
-      const opt = Array.isArray(a.opt) ? a.opt.length : 0;
-      return opt ? '游戏里正在等你选一条（' + opt + ' 条候选）→ 铁匠「蚀刻」页签' : '还没选铭文：蚀刻到 5 阶后去铁匠「蚀刻」页签挑一条。';
-    }
-    const c = I[cur];
-    return '<b>' + NS.esc(c.n) + '</b> ' + NS.esc(c.d || '') + '（当前已装）';
-  }
 
   /* 返回装备编辑器底部的一块；不可蚀刻的装备返回空串 */
   ET.block = function (it) {
     if (!it || !etchable(it)) return '';
     const a = NS.abyssOf(it), cor = isCor(it);
     const lv = a ? (Number(a.lv) || 0) : 0, n = a ? (Number(a.n) || 0) : 0;
-    const full = lv >= maxLv();
     const inscName = a && a.insc && G.ABYSS_INSC && G.ABYSS_INSC[a.insc] ? G.ABYSS_INSC[a.insc].n : '';
     const state = [
       '深渊阶 <b>' + lv + '</b> / ' + maxLv(),
@@ -309,9 +296,6 @@
         <button class="iap-btn${cor ? ' ghost' : ' pri'}" data-etch="corrupt"${cor ? ' disabled' : ''}>立即腐化（双重）</button>
         <button class="iap-btn${cor ? ' pri' : ' ghost'}" data-etch="uncor"${cor ? '' : ' disabled'}>取消腐化</button>
       </div>
-      <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? (inscName ? '已装「' + NS.esc(inscName) + '」' : '已满阶，还没选') : '要先蚀刻到 ' + maxLv() + ' 阶'}；觉醒 / 重选时游戏会列出全部 ${pool(it).length} 条，去铁匠「蚀刻」页签挑</small></div></div>
-      <div class="iap-hint" data-inscdesc>${inscDesc(it)}</div>
-      ${chip('allinsc', ET.allInsc, '5 阶铭文自选', '觉醒 / 重选时把本部位 ' + pool(it).length + ' 条铭文全列出来，自己挑一条（原本随机 3 选 1）')}
       <div class="iap-row"><div class="iap-lab"><b>腐化词缀</b><small>留空 = 随机；最多 2 条，只选 1 条时另一条随机补</small></div>
         <div class="iap-cds">${caffSel(0)}${caffSel(1)}
           <button class="iap-btn ghost tiny" data-etch="caffall" title="展开 / 收起全部 ${Object.keys(G.ABYSS_CAFF || {}).length} 条腐化词缀的效果">${caffAll ? '收起说明' : '全部说明'}</button></div></div>
@@ -320,6 +304,7 @@
       ${chip('ok', ET.ok, '蚀刻必定成功', '成功率按 100% 算，只在点蚀刻的那一次生效')}
       ${chip('notries', ET.notries, '蚀刻不消耗次数', '次数用完也能继续，每件最多 ' + maxLv() + ' 阶')}
       ${chip('twin', ET.twin, '腐化必定双重', '蚀刻失败 / 深渊之泪固定出 2 条词缀')}
+      ${chip('allinsc', ET.allInsc, '5 阶铭文自选', '觉醒 / 重选时把本部位 ' + pool(it).length + ' 条铭文全列出来，自己挑一条（原本随机 3 选 1）')}
       <div class="iap-hint">开关是全局的，记在 localStorage，换装备 / 重启游戏都保留。</div>
     </div>`;
   };
