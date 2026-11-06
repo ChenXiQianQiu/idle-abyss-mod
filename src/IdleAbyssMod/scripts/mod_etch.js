@@ -31,13 +31,11 @@
     /* 5 阶铭文自选（对照游戏的「终焉词条自选」）：默认开，觉醒 / 重选时把本部位全部铭文列出来 */
     allInsc: NS.prefs.abEtchAllInsc !== false,
     caff: Array.isArray(NS.prefs.abEtchCaff) ? NS.prefs.abEtchCaff.filter(function (k) { return typeof k === 'string'; }) : [],
-    insc: typeof NS.prefs.abEtchInsc === 'string' ? NS.prefs.abEtchInsc : '',
     hooked: {},
   });
   const orig = {};
-  /* 腐化词缀 / 5 阶铭文的「全部说明」是展开还是收起：纯界面状态，不进 prefs、不写存档 */
+  /* 腐化词缀的「全部说明」是展开还是收起：纯界面状态，不进 prefs、不写存档 */
   let caffAll = false;
-  let inscAll = false;
   const T = function () { return G.ABYSS_ETCH || {}; };
   const maxLv = function () { return Number(T().max) || 5; };
   const tries = function () { return Number(T().tries) || 6; };
@@ -49,7 +47,6 @@
     NS.prefs.abEtchTwin = ET.twin;
     NS.prefs.abEtchAllInsc = ET.allInsc;
     NS.prefs.abEtchCaff = ET.caff.slice();
-    NS.prefs.abEtchInsc = ET.insc;
     NS.savePrefs();
   }
   const rerender = function () { if (NS.panel) NS.panel.refresh(); };
@@ -239,20 +236,6 @@
     return true;
   }
 
-  /* 直接装铭文：满阶、未腐化、部位池里有这一条 */
-  function setInsc(it, key) {
-    const a = NS.abyssOf(it);
-    if (!a || !key) return false;
-    if (isCor(it)) return false;
-    if ((Number(a.lv) || 0) < maxLv()) return false;
-    if (pool(it).indexOf(key) < 0) return false;
-    it.abyss = (typeof abyssCanon === 'function'
-      ? abyssCanon(Object.assign({}, a, { insc: key, opt: null, re: null }), it)
-      : Object.assign({}, a, { insc: key }));
-    persist();
-    return true;
-  }
-
   /* ---------- 装备页里的区块 ---------- */
   function chip(key, on, name, note) {
     return `<div class="iap-row"><div class="iap-lab"><b>${name}</b><small>${note}</small></div>
@@ -290,31 +273,17 @@
       return `<div class="iap-caffd${on ? ' on' : ''}" data-caffkey="${k}"><b>${NS.esc(C[k].n)}</b>${NS.esc(C[k].d || '')}</div>`;
     }));
   }
-  function inscSel(it) {
-    const I = G.ABYSS_INSC || {}, keys = pool(it);
-    if (!keys.length) return '<span class="iap-hint">这个部位没有铭文</span>';
-    const opts = ['<option value="">（游戏随机 3 选 1）</option>'].concat(keys.map(function (k) {
-      return `<option value="${k}" title="${NS.esc(I[k] ? I[k].d || '' : '')}"${k === ET.insc ? ' selected' : ''}>${NS.esc(I[k] ? I[k].n : k)}</option>`;
-    })).join('');
-    return `<select class="iap-in" data-etch="insc" aria-label="5 阶铭文">${opts}</select>`;
-  }
-  /* 铭文说明：优先显示「准备选的那条」，没选就显示这件已经装上的。
-     自选的铭文是全局记的，换到别的部位后可能不在这个池里，那种情况当没选 */
+  /* 铭文说明：只显示这件装备已经装上的那条（v1.6.4 起面板不再自己装铭文，
+     觉醒 / 重选都在铁匠页签里从全部铭文里挑，所以这里只做「当前是什么、效果是什么」的速查） */
   function inscDesc(it) {
-    const I = G.ABYSS_INSC || {}, a = NS.abyssOf(it) || {}, keys = pool(it);
-    let cur = ET.insc && I[ET.insc] && keys.indexOf(ET.insc) >= 0 ? ET.insc : '';
-    if (!cur && a.insc && I[a.insc]) cur = a.insc;
-    if (!cur) return '没选 = 游戏随机给 3 条待选；选中后这里显示效果。';
+    const I = G.ABYSS_INSC || {}, a = NS.abyssOf(it) || {};
+    const cur = a.insc && I[a.insc] ? a.insc : '';
+    if (!cur) {
+      const opt = Array.isArray(a.opt) ? a.opt.length : 0;
+      return opt ? '游戏里正在等你选一条（' + opt + ' 条候选）→ 铁匠「蚀刻」页签' : '还没选铭文：蚀刻到 5 阶后去铁匠「蚀刻」页签挑一条。';
+    }
     const c = I[cur];
-    return '<b>' + NS.esc(c.n) + '</b> ' + NS.esc(c.d || '') + (cur === a.insc ? '（当前已装）' : '');
-  }
-  /* 全表按本部位的池过滤（ABYSS_INSC[k].pool 与 sockCat 一致），已选 / 已装的标亮 */
-  function inscList(it) {
-    const I = G.ABYSS_INSC || {}, cur = (NS.abyssOf(it) || {}).insc;
-    return twoCols(pool(it).map(function (k) {
-      const on = ET.insc === k || cur === k;
-      return `<div class="iap-caffd${on ? ' on' : ''}" data-insckey="${k}"><b>${NS.esc(I[k] ? I[k].n : k)}</b>${NS.esc(I[k] ? I[k].d || '' : '')}</div>`;
-    }));
+    return '<b>' + NS.esc(c.n) + '</b> ' + NS.esc(c.d || '') + '（当前已装）';
   }
 
   /* 返回装备编辑器底部的一块；不可蚀刻的装备返回空串 */
@@ -340,13 +309,9 @@
         <button class="iap-btn${cor ? ' ghost' : ' pri'}" data-etch="corrupt"${cor ? ' disabled' : ''}>立即腐化（双重）</button>
         <button class="iap-btn${cor ? ' pri' : ' ghost'}" data-etch="uncor"${cor ? '' : ' disabled'}>取消腐化</button>
       </div>
-      <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? '已满阶' : '要先蚀刻到 ' + maxLv() + ' 阶'}；觉醒 / 重选时游戏会列出 ${ET.allInsc ? '全部 ' + pool(it).length + ' 条' : '随机 3 条'}</small></div>
-        <div class="iap-cds">${inscSel(it)}
-          <button class="iap-btn" data-etch="takeinsc"${full && !cor ? '' : ' disabled'}>直接装上</button>
-          <button class="iap-btn ghost tiny" data-etch="inscall" title="展开 / 收起本部位全部铭文的效果">${inscAll ? '收起说明' : '全部说明'}</button></div></div>
+      <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? (inscName ? '已装「' + NS.esc(inscName) + '」' : '已满阶，还没选') : '要先蚀刻到 ' + maxLv() + ' 阶'}；觉醒 / 重选时游戏会列出全部 ${pool(it).length} 条，去铁匠「蚀刻」页签挑</small></div></div>
       <div class="iap-hint" data-inscdesc>${inscDesc(it)}</div>
       ${chip('allinsc', ET.allInsc, '5 阶铭文自选', '觉醒 / 重选时把本部位 ' + pool(it).length + ' 条铭文全列出来，自己挑一条（原本随机 3 选 1）')}
-      ${inscAll ? `<div class="iap-cafflist">${inscList(it)}</div>` : ''}
       <div class="iap-row"><div class="iap-lab"><b>腐化词缀</b><small>留空 = 随机；最多 2 条，只选 1 条时另一条随机补</small></div>
         <div class="iap-cds">${caffSel(0)}${caffSel(1)}
           <button class="iap-btn ghost tiny" data-etch="caffall" title="展开 / 收起全部 ${Object.keys(G.ABYSS_CAFF || {}).length} 条腐化词缀的效果">${caffAll ? '收起说明' : '全部说明'}</button></div></div>
@@ -374,7 +339,6 @@
         return;
       }
       if (act === 'caffall') { caffAll = !caffAll; rerender(); return; }
-      if (act === 'inscall') { inscAll = !inscAll; rerender(); return; }
       if (act === 'etch') {
         if (isCor(it)) { toast('已腐化，先取消腐化', true); return; }
         const a0 = NS.abyssOf(it) || {};
@@ -409,32 +373,12 @@
         else toast('这件没有腐化', true);
         return;
       }
-      if (act === 'takeinsc') {
-        const sel = root.querySelector('[data-etch="insc"]');
-        const k = sel ? sel.value : '';
-        if (!k) { toast('先选一条铭文', true); return; }
-        if (setInsc(it, k)) { rerender(); toast('铭文已装上：' + ((G.ABYSS_INSC[k] || {}).n || k)); }
-        else toast('装不上：要先满阶且未腐化', true);
-        return;
-      }
     });
 
     root.addEventListener('change', function (e) {
       const el = e.target;
       if (!el.dataset || !el.dataset.etch) return;
       const act = String(el.dataset.etch);
-      if (act === 'insc') {
-        ET.insc = el.value || ''; savePrefs();
-        /* 同腐化词缀：说明行与全表高亮就地更新，不整块重绘 */
-        const it = getItem && getItem();
-        const d = root.querySelector('[data-inscdesc]');
-        if (d) d.innerHTML = inscDesc(it);
-        const cur = (NS.abyssOf(it) || {}).insc;
-        root.querySelectorAll('[data-insckey]').forEach(function (n) {
-          n.classList.toggle('on', ET.insc === n.dataset.insckey || cur === n.dataset.insckey);
-        });
-        return;
-      }
       if (act.indexOf('caff:') === 0) {
         const i = Number(act.slice(5)) || 0;
         while (ET.caff.length <= i) ET.caff.push('');
