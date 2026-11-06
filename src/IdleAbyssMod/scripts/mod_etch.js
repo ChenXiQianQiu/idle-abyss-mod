@@ -28,6 +28,8 @@
     ok: !!NS.prefs.abEtchOk,
     notries: !!NS.prefs.abEtchNoTries,
     twin: !!NS.prefs.abEtchTwin,
+    /* 5 阶铭文自选（对照游戏的「终焉词条自选」）：默认开，觉醒 / 重选时把本部位全部铭文列出来 */
+    allInsc: NS.prefs.abEtchAllInsc !== false,
     caff: Array.isArray(NS.prefs.abEtchCaff) ? NS.prefs.abEtchCaff.filter(function (k) { return typeof k === 'string'; }) : [],
     insc: typeof NS.prefs.abEtchInsc === 'string' ? NS.prefs.abEtchInsc : '',
     hooked: {},
@@ -45,6 +47,7 @@
     NS.prefs.abEtchOk = ET.ok;
     NS.prefs.abEtchNoTries = ET.notries;
     NS.prefs.abEtchTwin = ET.twin;
+    NS.prefs.abEtchAllInsc = ET.allInsc;
     NS.prefs.abEtchCaff = ET.caff.slice();
     NS.prefs.abEtchInsc = ET.insc;
     NS.savePrefs();
@@ -58,9 +61,43 @@
     try { if (typeof markAll === 'function') markAll(); } catch (e) { }
   }
 
+  /* 5 阶觉醒的候选：本部位整个铭文池（和终焉升华一样，游戏里全列出来自己挑一条）。
+     abyssCanon 会把 opt 截到 3 条，所以还要包一层 canon 放开这个上限，见 hook()。 */
+  function allInsc(it) {
+    const p = pool(it);
+    return p.length ? p.slice() : null;
+  }
+
   /* ---------- 包装游戏函数 ---------- */
   function hook() {
-    /* 必定成功 + 不掉次数 + 自选铭文，都在 abyssEtch 这一层处理 */
+    /* 放开 abyssCanon 对 opt / re 的 3 条上限：自选时觉醒候选、重选候选都是整个池 */
+    if (typeof abyssCanon === 'function' && !orig.canon) {
+      orig.canon = abyssCanon;
+      window.abyssCanon = function (a, it) {
+        const out = orig.canon.apply(this, arguments);
+        if (!out || !a || !ET.allInsc) return out;
+        const p = pool(it);
+        /* 按存档里的顺序留下这个部位的合法键（去重），跳过 skip（重选时排除当前铭文） */
+        const keepOf = function (list, skip) {
+          const keep = [];
+          (Array.isArray(list) ? list : []).forEach(function (k) {
+            if (typeof k === 'string' && k !== skip && p.indexOf(k) >= 0 && keep.indexOf(k) < 0) keep.push(k);
+          });
+          return keep;
+        };
+        if (out.lv >= maxLv() && !out.insc) {
+          const keep = keepOf(a.opt);
+          if (keep.length > (Array.isArray(out.opt) ? out.opt.length : 0)) out.opt = keep;
+        }
+        if (out.insc && !out.cor) {
+          const keep = keepOf(a.re, out.insc);
+          if (keep.length > (Array.isArray(out.re) ? out.re.length : 0)) out.re = keep;
+        }
+        return out;
+      };
+      ET.hooked.canon = true;
+    }
+    /* 必定成功 + 不掉次数 + 5 阶觉醒候选，都在 abyssEtch 这一层处理 */
     if (typeof abyssEtch === 'function' && !orig.etch) {
       orig.etch = abyssEtch;
       window.abyssEtch = function (it, useWard) {
@@ -77,15 +114,10 @@
         let dirty = false;
         /* 不消耗次数：内部会整块重建 it.abyss，所以用调用前记下的数字 */
         if (ET.notries && before != null) { it.abyss.n = before; dirty = true; }
-        /* 自选 5 阶铭文：满阶时游戏给了 3 条待选，把自选那条换到第一位（其余保留） */
-        if (r.kind === 'ok' && ET.insc && it.abyss.lv >= maxLv() && Array.isArray(it.abyss.opt)) {
-          try {
-            const pool = typeof abyssPool === 'function' ? abyssPool(it) : [];
-            if (pool.indexOf(ET.insc) >= 0 && it.abyss.opt.indexOf(ET.insc) !== 0) {
-              it.abyss.opt = [ET.insc].concat(it.abyss.opt.filter(function (k) { return k !== ET.insc; }).slice(0, 2));
-              dirty = true;
-            }
-          } catch (e) { }
+        /* 5 阶觉醒：游戏原本随机给 3 条，开着自选时换成整个池，铁匠页签里全部列出来 */
+        if (ET.allInsc && r.kind === 'ok' && it.abyss.lv >= maxLv() && Array.isArray(it.abyss.opt)) {
+          const all = allInsc(it);
+          if (all && all.length > it.abyss.opt.length) { it.abyss.opt = all; dirty = true; }
         }
         if (dirty) {
           try { if (typeof abyssCanon === 'function') it.abyss = abyssCanon(it.abyss, it); } catch (e) { }
@@ -100,9 +132,40 @@
       orig.corrupt = abyssCorrupt;
       window.abyssCorrupt = function (it, table) {
         if (ET.twin) table = [['twin', 1]];
-        return orig.corrupt.call(this, it, table);
+        const r = orig.corrupt.call(this, it, table);
+        /* 腐化时刚好满阶、又还没有铭文：同样给整个池（游戏里会列出来） */
+        const a = NS.abyssOf(it);
+        if (ET.allInsc && a && a.lv >= maxLv() && !a.insc && Array.isArray(a.opt)) {
+          const all = allInsc(it);
+          if (all && all.length > a.opt.length) {
+            try {
+              it.abyss = abyssCanon(Object.assign({}, a, { opt: all }), it);
+              save();
+            } catch (e) { }
+          }
+        }
+        return r;
       };
       ET.hooked.corrupt = true;
+    }
+    /* 重选铭文：原本随机 2 条，自选时换成整个池（排除当前已装的） */
+    if (typeof abyssReinsc === 'function' && !orig.reinsc) {
+      orig.reinsc = abyssReinsc;
+      window.abyssReinsc = function (it) {
+        const r = orig.reinsc.apply(this, arguments);
+        if (!r || !ET.allInsc) return r;
+        const a = NS.abyssOf(it), all = allInsc(it);
+        if (!a || !a.insc || a.cor || !Array.isArray(a.re) || !all) return r;
+        const keep = all.filter(function (k) { return k !== a.insc; });
+        if (keep.length > a.re.length) {
+          try {
+            it.abyss = abyssCanon(Object.assign({}, a, { re: keep }), it);
+            save();
+          } catch (e) { }
+        }
+        return r;
+      };
+      ET.hooked.reinsc = true;
     }
     /* 自选腐化词缀：只替换「取哪几条」 */
     if (typeof abyssRollCaff === 'function' && !orig.caff) {
@@ -120,12 +183,15 @@
     }
   }
   hook();
-  if (!ET.hooked.etch || !ET.hooked.corrupt || !ET.hooked.caff) setTimeout(hook, 1000);
-  /* 给诊断日志用：'111' 表示三个包装都挂上了 */
-  ET.hookCode = function () { return (ET.hooked.etch ? 1 : 0) + '' + (ET.hooked.corrupt ? 1 : 0) + '' + (ET.hooked.caff ? 1 : 0); };
+  if (!ET.hooked.etch || !ET.hooked.corrupt || !ET.hooked.caff || !ET.hooked.canon || !ET.hooked.reinsc) setTimeout(hook, 1000);
+  /* 给诊断日志用：'11111' 表示五个包装都挂上了（etch / corrupt / caff / canon / reinsc） */
+  ET.hookCode = function () {
+    return (ET.hooked.etch ? 1 : 0) + '' + (ET.hooked.corrupt ? 1 : 0) + '' + (ET.hooked.caff ? 1 : 0)
+      + '' + (ET.hooked.canon ? 1 : 0) + '' + (ET.hooked.reinsc ? 1 : 0);
+  };
   /* 启动 1.2 秒后往主进程日志写一行（正式包没有 DevTools，只能靠这行确认钩子活着） */
   setTimeout(function () {
-    try { reportErr('[IAPM] 蚀刻钩子 ' + ET.hookCode() + (ET.hookCode() === '111' ? ' 全部挂上' : ' 有缺失')); } catch (e) { }
+    try { reportErr('[IAPM] 蚀刻钩子 ' + ET.hookCode() + (ET.hookCode() === '11111' ? ' 全部挂上' : ' 有缺失')); } catch (e) { }
   }, 1200);
 
   /* ---------- 操作 ---------- */
@@ -274,11 +340,12 @@
         <button class="iap-btn${cor ? ' ghost' : ' pri'}" data-etch="corrupt"${cor ? ' disabled' : ''}>立即腐化（双重）</button>
         <button class="iap-btn${cor ? ' pri' : ' ghost'}" data-etch="uncor"${cor ? '' : ' disabled'}>取消腐化</button>
       </div>
-      <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? '已满阶' : '要先蚀刻到 ' + maxLv() + ' 阶'}；选了就优先出现在待选列表</small></div>
+      <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? '已满阶' : '要先蚀刻到 ' + maxLv() + ' 阶'}；觉醒 / 重选时游戏会列出 ${ET.allInsc ? '全部 ' + pool(it).length + ' 条' : '随机 3 条'}</small></div>
         <div class="iap-cds">${inscSel(it)}
           <button class="iap-btn" data-etch="takeinsc"${full && !cor ? '' : ' disabled'}>直接装上</button>
           <button class="iap-btn ghost tiny" data-etch="inscall" title="展开 / 收起本部位全部铭文的效果">${inscAll ? '收起说明' : '全部说明'}</button></div></div>
       <div class="iap-hint" data-inscdesc>${inscDesc(it)}</div>
+      ${chip('allinsc', ET.allInsc, '5 阶铭文自选', '觉醒 / 重选时把本部位 ' + pool(it).length + ' 条铭文全列出来，自己挑一条（原本随机 3 选 1）')}
       ${inscAll ? `<div class="iap-cafflist">${inscList(it)}</div>` : ''}
       <div class="iap-row"><div class="iap-lab"><b>腐化词缀</b><small>留空 = 随机；最多 2 条，只选 1 条时另一条随机补</small></div>
         <div class="iap-cds">${caffSel(0)}${caffSel(1)}
@@ -301,9 +368,9 @@
       if (!it) return;
       if (act.indexOf('tog:') === 0) {
         const k = act.slice(4);
-        if (!['ok', 'notries', 'twin'].includes(k)) return;
+        if (!['ok', 'notries', 'twin', 'allinsc'].includes(k)) return;
         ET[k] = !ET[k]; savePrefs(); rerender();
-        toast(({ ok: '蚀刻必定成功', notries: '蚀刻不消耗次数', twin: '腐化必定双重' })[k] + (ET[k] ? ' 已开启' : ' 已关闭'));
+        toast(({ ok: '蚀刻必定成功', notries: '蚀刻不消耗次数', twin: '腐化必定双重', allinsc: '5 阶铭文自选' })[k] + (ET[k] ? ' 已开启' : ' 已关闭'));
         return;
       }
       if (act === 'caffall') { caffAll = !caffAll; rerender(); return; }
