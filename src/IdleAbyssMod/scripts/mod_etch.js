@@ -33,6 +33,9 @@
     hooked: {},
   });
   const orig = {};
+  /* 腐化词缀 / 5 阶铭文的「全部说明」是展开还是收起：纯界面状态，不进 prefs、不写存档 */
+  let caffAll = false;
+  let inscAll = false;
   const T = function () { return G.ABYSS_ETCH || {}; };
   const maxLv = function () { return Number(T().max) || 5; };
   const tries = function () { return Number(T().tries) || 6; };
@@ -193,17 +196,59 @@
     const C = G.ABYSS_CAFF || {}, cur = ET.caff[idx] || '';
     const used = ET.caff.filter(function (k, i) { return i !== idx && k; });
     const opts = ['<option value="">（随机）</option>'].concat(Object.keys(C).map(function (k) {
-      return `<option value="${k}"${k === cur ? ' selected' : ''}>${NS.esc(C[k].n)}${used.indexOf(k) >= 0 ? ' · 已选' : ''}</option>`;
+      /* title 让鼠标停在下拉项上就能看到效果；长文本靠下面的说明行读 */
+      return `<option value="${k}" title="${NS.esc(C[k].d || '')}"${k === cur ? ' selected' : ''}>${NS.esc(C[k].n)}${used.indexOf(k) >= 0 ? ' · 已选' : ''}</option>`;
     })).join('');
     return `<select class="iap-in sm" data-etch="caff:${idx}" aria-label="腐化词缀 ${idx + 1}">${opts}</select>`;
+  }
+  /* 已选词缀的效果说明：数据直接取游戏的 ABYSS_CAFF[k].d，不另写一份文案，
+     游戏改数值时这里跟着变 */
+  function caffDesc() {
+    const C = G.ABYSS_CAFF || {};
+    const picked = ET.caff.map(function (k) { return k && C[k] ? C[k] : null; }).filter(Boolean);
+    if (!picked.length) return '两条都留空 = 游戏随机抽；选中后这里显示效果。';
+    return picked.map(function (c) { return '<b>' + NS.esc(c.n) + '</b> ' + NS.esc(c.d || ''); }).join('<br>');
+  }
+  /* 两列排：奇数条进左列、偶数条进右列，两列各自成列。
+     用 flex 而不是 grid —— grid 同一行会被长条目撑高，短条目下面留一大块空白 */
+  function twoCols(items) {
+    const col = [[], []];
+    items.forEach(function (h, i) { col[i % 2].push(h); });
+    return '<div class="iap-caffcol">' + col[0].join('') + '</div><div class="iap-caffcol">' + col[1].join('') + '</div>';
+  }
+  /* 全表：12 条一起列出来，已选的高亮，方便对照着挑（点「全部说明」才展开） */
+  function caffList() {
+    const C = G.ABYSS_CAFF || {};
+    return twoCols(Object.keys(C).map(function (k) {
+      const on = ET.caff.indexOf(k) >= 0;
+      return `<div class="iap-caffd${on ? ' on' : ''}" data-caffkey="${k}"><b>${NS.esc(C[k].n)}</b>${NS.esc(C[k].d || '')}</div>`;
+    }));
   }
   function inscSel(it) {
     const I = G.ABYSS_INSC || {}, keys = pool(it);
     if (!keys.length) return '<span class="iap-hint">这个部位没有铭文</span>';
     const opts = ['<option value="">（游戏随机 3 选 1）</option>'].concat(keys.map(function (k) {
-      return `<option value="${k}"${k === ET.insc ? ' selected' : ''}>${NS.esc(I[k] ? I[k].n : k)}</option>`;
+      return `<option value="${k}" title="${NS.esc(I[k] ? I[k].d || '' : '')}"${k === ET.insc ? ' selected' : ''}>${NS.esc(I[k] ? I[k].n : k)}</option>`;
     })).join('');
     return `<select class="iap-in" data-etch="insc" aria-label="5 阶铭文">${opts}</select>`;
+  }
+  /* 铭文说明：优先显示「准备选的那条」，没选就显示这件已经装上的。
+     自选的铭文是全局记的，换到别的部位后可能不在这个池里，那种情况当没选 */
+  function inscDesc(it) {
+    const I = G.ABYSS_INSC || {}, a = NS.abyssOf(it) || {}, keys = pool(it);
+    let cur = ET.insc && I[ET.insc] && keys.indexOf(ET.insc) >= 0 ? ET.insc : '';
+    if (!cur && a.insc && I[a.insc]) cur = a.insc;
+    if (!cur) return '没选 = 游戏随机给 3 条待选；选中后这里显示效果。';
+    const c = I[cur];
+    return '<b>' + NS.esc(c.n) + '</b> ' + NS.esc(c.d || '') + (cur === a.insc ? '（当前已装）' : '');
+  }
+  /* 全表按本部位的池过滤（ABYSS_INSC[k].pool 与 sockCat 一致），已选 / 已装的标亮 */
+  function inscList(it) {
+    const I = G.ABYSS_INSC || {}, cur = (NS.abyssOf(it) || {}).insc;
+    return twoCols(pool(it).map(function (k) {
+      const on = ET.insc === k || cur === k;
+      return `<div class="iap-caffd${on ? ' on' : ''}" data-insckey="${k}"><b>${NS.esc(I[k] ? I[k].n : k)}</b>${NS.esc(I[k] ? I[k].d || '' : '')}</div>`;
+    }));
   }
 
   /* 返回装备编辑器底部的一块；不可蚀刻的装备返回空串 */
@@ -231,9 +276,15 @@
       </div>
       <div class="iap-row"><div class="iap-lab"><b>5 阶铭文</b><small>${full ? '已满阶' : '要先蚀刻到 ' + maxLv() + ' 阶'}；选了就优先出现在待选列表</small></div>
         <div class="iap-cds">${inscSel(it)}
-          <button class="iap-btn" data-etch="takeinsc"${full && !cor ? '' : ' disabled'}>直接装上</button></div></div>
+          <button class="iap-btn" data-etch="takeinsc"${full && !cor ? '' : ' disabled'}>直接装上</button>
+          <button class="iap-btn ghost tiny" data-etch="inscall" title="展开 / 收起本部位全部铭文的效果">${inscAll ? '收起说明' : '全部说明'}</button></div></div>
+      <div class="iap-hint" data-inscdesc>${inscDesc(it)}</div>
+      ${inscAll ? `<div class="iap-cafflist">${inscList(it)}</div>` : ''}
       <div class="iap-row"><div class="iap-lab"><b>腐化词缀</b><small>留空 = 随机；最多 2 条，只选 1 条时另一条随机补</small></div>
-        <div class="iap-cds">${caffSel(0)}${caffSel(1)}</div></div>
+        <div class="iap-cds">${caffSel(0)}${caffSel(1)}
+          <button class="iap-btn ghost tiny" data-etch="caffall" title="展开 / 收起全部 ${Object.keys(G.ABYSS_CAFF || {}).length} 条腐化词缀的效果">${caffAll ? '收起说明' : '全部说明'}</button></div></div>
+      <div class="iap-hint" data-caffdesc>${caffDesc()}</div>
+      ${caffAll ? `<div class="iap-cafflist">${caffList()}</div>` : ''}
       ${chip('ok', ET.ok, '蚀刻必定成功', '成功率按 100% 算，只在点蚀刻的那一次生效')}
       ${chip('notries', ET.notries, '蚀刻不消耗次数', '次数用完也能继续，每件最多 ' + maxLv() + ' 阶')}
       ${chip('twin', ET.twin, '腐化必定双重', '蚀刻失败 / 深渊之泪固定出 2 条词缀')}
@@ -255,6 +306,8 @@
         toast(({ ok: '蚀刻必定成功', notries: '蚀刻不消耗次数', twin: '腐化必定双重' })[k] + (ET[k] ? ' 已开启' : ' 已关闭'));
         return;
       }
+      if (act === 'caffall') { caffAll = !caffAll; rerender(); return; }
+      if (act === 'inscall') { inscAll = !inscAll; rerender(); return; }
       if (act === 'etch') {
         if (isCor(it)) { toast('已腐化，先取消腐化', true); return; }
         const a0 = NS.abyssOf(it) || {};
@@ -303,12 +356,29 @@
       const el = e.target;
       if (!el.dataset || !el.dataset.etch) return;
       const act = String(el.dataset.etch);
-      if (act === 'insc') { ET.insc = el.value || ''; savePrefs(); return; }
+      if (act === 'insc') {
+        ET.insc = el.value || ''; savePrefs();
+        /* 同腐化词缀：说明行与全表高亮就地更新，不整块重绘 */
+        const it = getItem && getItem();
+        const d = root.querySelector('[data-inscdesc]');
+        if (d) d.innerHTML = inscDesc(it);
+        const cur = (NS.abyssOf(it) || {}).insc;
+        root.querySelectorAll('[data-insckey]').forEach(function (n) {
+          n.classList.toggle('on', ET.insc === n.dataset.insckey || cur === n.dataset.insckey);
+        });
+        return;
+      }
       if (act.indexOf('caff:') === 0) {
         const i = Number(act.slice(5)) || 0;
         while (ET.caff.length <= i) ET.caff.push('');
         ET.caff[i] = el.value || '';
         savePrefs();
+        /* 说明行和全表高亮就地更新：整块重绘会把刚选完的下拉框（连同焦点）换掉 */
+        const d = root.querySelector('[data-caffdesc]');
+        if (d) d.innerHTML = caffDesc();
+        root.querySelectorAll('[data-caffkey]').forEach(function (n) {
+          n.classList.toggle('on', ET.caff.indexOf(n.dataset.caffkey) >= 0);
+        });
         return;
       }
     });

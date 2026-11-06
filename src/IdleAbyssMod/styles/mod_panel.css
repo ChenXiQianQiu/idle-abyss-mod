@@ -162,6 +162,17 @@ select.iap-in { text-align: left; }
 .iap-range { flex: 1; color: var(--mute, #6a5e52); font-size: 10px; line-height: 11px; }
 .iap-range i { font-style: normal; color: #8a7a64; }
 .iap-affadd { padding: 4px 8px 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* 深渊蚀刻 · 腐化词缀 / 5 阶铭文的说明：下拉框只放名字，效果走下面这行（v1.6.2）
+   全表默认收起，点「全部说明」展开成两列；名字固定宽度，效果文字才对得齐 */
+.iap-caffd { display: flex; align-items: baseline; gap: 6px; font-size: 10px; line-height: 13px;
+  color: var(--mute, #6a5e52); }
+.iap-caffd b { flex: 0 0 48px; color: var(--ink, #e8dcc0); font-weight: normal; }
+.iap-caffd.on { color: #b8a888; }
+.iap-caffd.on b { color: var(--gold-hi, #f0d070); }
+.iap-cafflist { display: flex; gap: 12px; padding: 3px 8px 5px; }
+.iap-caffcol { flex: 1 1 0; min-width: 0; }
+[data-caffdesc], [data-inscdesc] { padding: 0 8px 3px; }
+[data-caffdesc] b, [data-inscdesc] b { color: #e8c66e; font-weight: normal; }
 
 /* ---------- 团本页 ---------- */
 .iap-hint.bad { color: var(--bad, #ff6e5e); }
